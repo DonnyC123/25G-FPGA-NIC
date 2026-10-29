@@ -1,0 +1,22 @@
+# Byte-compiled / Python cached files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Simulation build artifacts
+sim_build/
+sim_build_*
+*.vcd
+*.fst
+*.ghw
+
+# Pytest cache
+.pytest_cache/
+
+# Agent workspace metadata
+.agents/
+conda_set_up/*.sh
+
+# Bazel output symlinks
+bazel-*

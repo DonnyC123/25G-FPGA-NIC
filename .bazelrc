@@ -1,0 +1,21 @@
+# Automatically picks up build:macos / build:linux / build:windows below
+# based on the host OS, so no --config flag is needed on the command line.
+build --enable_platform_specific_config
+
+# Apple's libc++ gates std::filesystem (and other C++17 stdlib features)
+# behind availability annotations tied to the deployment target. Bazel's
+# autoconfigured macOS C++ toolchain doesn't set one by default, which
+# breaks targets that use std::filesystem (e.g. the verilator BCR module's
+# rules_cc_autoconf dependency). This only applies to macOS builds; Linux's
+# libstdc++ has no such gating.
+build:macos --macos_minimum_os=11.0
+build:macos --host_macos_minimum_os=11.0
+
+# `bazel test --config=questa ...` runs cocotb tests on Questa instead of
+# Verilator. Needs QUESTA_HOME set to the install root; license vars are
+# forwarded from the shell because Bazel strips the test environment.
+build:questa --//:sim=questa
+test:questa --test_env=SALT_LICENSE_SERVER
+test:questa --test_env=LM_LICENSE_FILE
+
+test --test_env=COCOTB_RANDOM_SEED=0x5EED

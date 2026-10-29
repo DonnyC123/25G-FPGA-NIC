@@ -1,0 +1,30 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "tx_pad_counter",
+    srcs = ["tx_pad_counter.sv"],
+    deps = ["//common/pkg:pcs_pkg"],
+)
+
+verilog_library(
+    name = "tx_fcs_encoder",
+    srcs = ["tx_fcs_encoder.sv"],
+    deps = [
+        "//common/pkg:crc32_pkg",
+        "//common/pkg:pcs_pkg",
+        "//rtl_utils:crc32_word",
+    ],
+)
+
+verilog_library(
+    name = "tx_framer",
+    srcs = ["tx_framer.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":tx_fcs_encoder",
+        ":tx_pad_counter",
+        "//common/pkg:crc32_pkg",
+        "//common/pkg:pcs_pkg",
+        "//rtl_utils/if:tx_eth_stream_if",
+    ],
+)

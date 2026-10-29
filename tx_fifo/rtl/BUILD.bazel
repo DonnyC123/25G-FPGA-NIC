@@ -1,0 +1,12 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "tx_fifo_ctrl",
+    srcs = ["tx_fifo_ctrl.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//rtl_utils:async_packet_fifo",
+        "//rtl_utils/if:axi_stream_if",
+        "//rtl_utils/if:tx_eth_stream_if",
+    ],
+)

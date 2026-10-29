@@ -1,0 +1,56 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@rules_python//python:defs.bzl", "py_binary")
+load(":verible_filelist.bzl", "verible_filelist")
+
+verible_filelist(
+    name = "verible_filelist",
+    deps = [
+        "//:nic_top",
+        "//rtl_utils",
+        "//rtl_utils/if",
+        "//rx_fifo/tb:rx_fifo_top",
+        "//rx_mac/tb/crc_checker:crc_checker_top",
+        "//rx_top/tb:rx_top_wrapper",
+        "//tx_fifo/tb:tx_fifo_top",
+        "//tx_mac/tb/tx_framer:tx_framer_top",
+        "//tx_pcs/tb/tx_pcs:tx_pcs_top",
+        "//tx_top/tb:tx_top_wrapper",
+    ],
+)
+
+py_binary(
+    name = "update_verible_filelist",
+    srcs = ["update_source_file.py"],
+    args = [
+        "$(rootpath :verible_filelist)",
+        "verible.filelist",
+    ],
+    data = [":verible_filelist"],
+    main = "update_source_file.py",
+)
+
+diff_test(
+    name = "verible_filelist_test",
+    failure_message = "verible.filelist is stale, run: bazel run //tools:update_verible_filelist",
+    file1 = ":verible_filelist",
+    file2 = "//:verible.filelist",
+)
+
+py_binary(
+    name = "gen_sv_pkg_py",
+    srcs = ["gen_sv_pkg_py.py"],
+    main = "gen_sv_pkg_py.py",
+    visibility = ["//visibility:public"],
+    deps = ["@pip//pyslang"],
+)
+
+py_binary(
+    name = "pyright",
+    srcs = ["pyright.py"],
+    main = "pyright.py",
+    deps = [
+        "@pip//cocotb",
+        "@pip//pyslang",
+        "@pip//scapy",
+    ],
+)

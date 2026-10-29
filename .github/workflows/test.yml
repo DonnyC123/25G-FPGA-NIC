@@ -1,0 +1,50 @@
+name: Test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  BAZELISK_VERSION: v1.25.0
+
+jobs:
+  verilator:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Bazelisk
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          if [ ! -x "$HOME/.local/bin/bazel" ]; then
+            curl -fsSL -o "$HOME/.local/bin/bazel" \
+              "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
+            chmod +x "$HOME/.local/bin/bazel"
+          fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Bazel test (Verilator)
+        run: bazel test //... --test_output=errors
+
+  questa:
+    runs-on: self-hosted
+    needs: verilator
+    defaults:
+      run:
+        shell: bash -el {0}
+    env:
+      QUESTA_HOME: /home/dcc3637/altera/25.1std/questa_fse
+      SALT_LICENSE_SERVER: /home/dcc3637/LR-154571_License.dat
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add Bazelisk to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Bazel test (Questa)
+        run: bazel test //... --config=questa --test_output=errors

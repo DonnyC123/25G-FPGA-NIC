@@ -1,0 +1,11 @@
+load("//tools:sv_pkg.bzl", "sv_pkg")
+
+sv_pkg(
+    name = "crc32_pkg",
+    visibility = ["//visibility:public"],
+)
+
+sv_pkg(
+    name = "pcs_pkg",
+    visibility = ["//visibility:public"],
+)

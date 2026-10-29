@@ -1,0 +1,46 @@
+load("@rules_cocotb//cocotb:cocotb_test.bzl", "cocotb_test")
+load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "tx_framer_top",
+    srcs = ["tx_framer_top.sv"],
+    visibility = ["//tools:__pkg__"],
+    deps = [
+        "//common/pkg:pcs_pkg",
+        "//rtl_utils/if:tx_eth_stream_if",
+        "//tx_mac/rtl:tx_framer",
+    ],
+)
+
+py_library(
+    name = "tx_framer_tb",
+    srcs = [
+        "tx_framer_monitor.py",
+        "tx_framer_test_base.py",
+    ],
+    deps = [
+        "//common/pkg:pcs_pkg_py",
+        "//tb_utils",
+        "//tb_utils/net",
+        "//tools/cocotb",
+    ],
+)
+
+TX_FRAMER_CASES = {
+    "tx_framer_test": 60,
+    "tx_framer_test_min_64": 64,
+}
+
+[
+    cocotb_test(
+        name = name,
+        srcs = ["tx_framer_test.py"],
+        module = ":tx_framer_top",
+        params = [
+            "MIN_FRAME_BYTES=%d" % min_frame_bytes,
+        ],
+        deps = [":tx_framer_tb"],
+    )
+    for name, min_frame_bytes in TX_FRAMER_CASES.items()
+]

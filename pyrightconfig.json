@@ -1,0 +1,19 @@
+{
+  "executionEnvironments": [
+    {
+      "root": "."
+    }
+  ],
+  "extraPaths": [
+    ".",
+    "bazel-bin"
+  ],
+  "include": [
+    "."
+  ],
+  "exclude": [
+    "**/.*",
+    "bazel-*"
+  ],
+  "pythonVersion": "3.11"
+}

@@ -1,0 +1,25 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+RTL_UTILS_IF_DEPS = {
+    "axi_stream_if": [],
+    "data_valid_if": [],
+    "fifo_rd_if": [],
+    "fifo_wr_if": [],
+    "tx_eth_stream_if": [],
+}
+
+[
+    verilog_library(
+        name = name,
+        srcs = [name + ".sv"],
+        visibility = ["//visibility:public"],
+        deps = deps,
+    )
+    for name, deps in RTL_UTILS_IF_DEPS.items()
+]
+
+verilog_library(
+    name = "if",
+    visibility = ["//visibility:public"],
+    deps = [":" + name for name in RTL_UTILS_IF_DEPS],
+)

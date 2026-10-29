@@ -1,0 +1,14 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "tx_top",
+    srcs = ["tx_top.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/pkg:pcs_pkg",
+        "//rtl_utils/if:axi_stream_if",
+        "//rtl_utils/if:tx_eth_stream_if",
+        "//tx_fifo/rtl:tx_fifo_ctrl",
+        "//tx_pcs/rtl:tx_pcs",
+    ],
+)

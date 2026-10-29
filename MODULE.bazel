@@ -1,0 +1,28 @@
+module(name = "chipteam2026", version = "0.1.0")
+
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "rules_cocotb", version = "0.7.0")
+bazel_dep(name = "rules_python", version = "2.3.3")
+bazel_dep(name = "rules_verilog", version = "1.4.3")
+bazel_dep(name = "verilator", version = "5.046.bcr.5")
+
+questa = use_repo_rule("//tools/cocotb:questa.bzl", "questa_local")
+
+questa(name = "questa")
+
+register_toolchains("//tools/cocotb:toolchain")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(python_version = "3.11")
+use_repo(python, "python_3_11")
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "pip",
+    python_version = "3.11",
+    requirements_lock = "//:requirements_lock.txt",
+)
+use_repo(pip, "pip")
+
+rules_python_config = use_extension("@rules_python//python/extensions:config.bzl", "config")
+rules_python_config.explicit_init_py(default = True)

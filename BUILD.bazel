@@ -1,0 +1,38 @@
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+exports_files(["verible.filelist"])
+
+verilog_library(
+    name = "nic_top",
+    srcs = ["nic_top.sv"],
+    visibility = ["//tools:__pkg__"],
+    deps = [
+        "//rtl_utils:rst_sync",
+        "//rtl_utils/if:axi_stream_if",
+        "//rx_top/rtl:rx_top",
+        "//tx_top/rtl:tx_top",
+    ],
+)
+
+string_flag(
+    name = "sim",
+    build_setting_default = "verilator",
+    values = [
+        "questa",
+        "verilator",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "sim_questa",
+    flag_values = {":sim": "questa"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "sim_verilator",
+    flag_values = {":sim": "verilator"},
+    visibility = ["//visibility:public"],
+)

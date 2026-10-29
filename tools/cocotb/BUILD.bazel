@@ -1,0 +1,45 @@
+load("@rules_cocotb//cocotb:cocotb_questa_sim.bzl", "cocotb_questa_sim")
+load("@rules_cocotb//cocotb:cocotb_toolchain.bzl", "cocotb_toolchain")
+load("@rules_cocotb//cocotb:cocotb_verilator_sim.bzl", "cocotb_verilator_sim")
+load("@rules_python//python:defs.bzl", "py_library")
+
+py_library(
+    name = "cocotb",
+    visibility = ["//visibility:public"],
+    deps = ["@pip//cocotb"],
+)
+
+cocotb_verilator_sim(
+    name = "cocotb_verilator",
+    cocotb = ":cocotb",
+    verilator = "@verilator//:verilator_executable",
+    deps = ["@verilator//:verilated"],
+)
+
+cocotb_questa_sim(
+    name = "cocotb_questa",
+    vcom = "@questa//:vcom",
+    vlib = "@questa//:vlib",
+    vlog = "@questa//:vlog",
+    vsim = "@questa//:vsim",
+)
+
+# cocotb_test targets omit `sim`, so --//:sim picks the simulator for every test.
+cocotb_toolchain(
+    name = "cocotb_toolchain",
+    cocotb = ":cocotb",
+    default_sim = select({
+        "//:sim_questa": "questa",
+        "//:sim_verilator": "verilator",
+    }),
+    simulators = {
+        ":cocotb_questa": "questa",
+        ":cocotb_verilator": "verilator",
+    },
+)
+
+toolchain(
+    name = "toolchain",
+    toolchain = ":cocotb_toolchain",
+    toolchain_type = "@rules_cocotb//cocotb:toolchain_type",
+)
