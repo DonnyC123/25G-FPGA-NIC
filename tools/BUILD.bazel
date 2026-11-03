@@ -5,16 +5,16 @@ load(":verible_filelist.bzl", "verible_filelist")
 verible_filelist(
     name = "verible_filelist",
     deps = [
-        "//:nic_top",
-        "//rtl_utils",
-        "//rtl_utils/if",
-        "//rx_fifo/tb:rx_fifo_top",
-        "//rx_mac/tb/crc_checker:crc_checker_top",
-        "//rx_top/tb:rx_top_wrapper",
-        "//tx_fifo/tb:tx_fifo_top",
-        "//tx_mac/tb/tx_framer:tx_framer_top",
-        "//tx_pcs/tb/tx_pcs:tx_pcs_top",
-        "//tx_top/tb:tx_top_wrapper",
+        "//top:nic_top",
+        "//hw/rtl_utils",
+        "//hw/rtl_utils/if",
+        "//hw/rx_fifo/tb:rx_fifo_top",
+        "//hw/rx_mac/tb/crc_checker:crc_checker_top",
+        "//hw/rx_top/tb:rx_top_wrapper",
+        "//hw/tx_fifo/tb:tx_fifo_top",
+        "//hw/tx_mac/tb/tx_framer:tx_framer_top",
+        "//hw/tx_pcs/tb/tx_pcs:tx_pcs_top",
+        "//hw/tx_top/tb:tx_top_wrapper",
     ],
 )
 

@@ -16,7 +16,16 @@ sim_build_*
 
 # Agent workspace metadata
 .agents/
-conda_set_up/*.sh
 
 # Bazel output symlinks
 bazel-*
+
+# Kernel module build artifacts
+sw/driver/*.o
+sw/driver/*.ko
+sw/driver/*.mod
+sw/driver/*.mod.c
+sw/driver/.*.cmd
+sw/driver/.*.d
+sw/driver/Module.symvers
+sw/driver/modules.order

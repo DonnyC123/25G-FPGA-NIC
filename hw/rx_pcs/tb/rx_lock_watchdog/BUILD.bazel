@@ -1,0 +1,15 @@
+load("@rules_cocotb//cocotb:cocotb_test.bzl", "cocotb_test")
+
+cocotb_test(
+    name = "rx_lock_watchdog_test",
+    srcs = ["rx_lock_watchdog_test.py"],
+    module = "//hw/rx_pcs/rtl:rx_lock_watchdog",
+    params = [
+        "TIMEOUT_CYCLES=20",
+        "PULSE_CYCLES=4",
+    ],
+    deps = [
+        "//hw/tb_utils",
+        "//tools/cocotb",
+    ],
+)

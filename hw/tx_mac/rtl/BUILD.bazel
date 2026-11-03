@@ -1,0 +1,61 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "tx_pad_counter",
+    srcs = ["tx_pad_counter.sv"],
+    deps = ["//hw/common/pkg:pcs_pkg"],
+)
+
+verilog_library(
+    name = "tx_fcs_encoder",
+    srcs = ["tx_fcs_encoder.sv"],
+    deps = [
+        "//hw/common/pkg:crc32_pkg",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rtl_utils:crc32_word",
+    ],
+)
+
+verilog_library(
+    name = "tx_fcs_inserter",
+    srcs = ["tx_fcs_inserter.sv"],
+    deps = [
+        "//hw/common/pkg:crc32_pkg",
+        "//hw/common/pkg:pcs_pkg",
+    ],
+)
+
+verilog_library(
+    name = "tx_framer_ctrl",
+    srcs = ["tx_framer_ctrl.sv"],
+    deps = [
+        ":tx_fcs_encoder",
+        ":tx_pad_counter",
+        "//hw/common/pkg:crc32_pkg",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rtl_utils/if:tx_eth_stream_if",
+    ],
+)
+
+verilog_library(
+    name = "tx_framer_out",
+    srcs = ["tx_framer_out.sv"],
+    deps = [
+        ":tx_fcs_inserter",
+        "//hw/common/pkg:crc32_pkg",
+        "//hw/common/pkg:pcs_pkg",
+    ],
+)
+
+verilog_library(
+    name = "tx_framer",
+    srcs = ["tx_framer.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":tx_framer_ctrl",
+        ":tx_framer_out",
+        "//hw/common/pkg:crc32_pkg",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rtl_utils/if:tx_eth_stream_if",
+    ],
+)

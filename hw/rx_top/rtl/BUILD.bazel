@@ -1,0 +1,15 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "rx_top",
+    srcs = ["rx_top.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rtl_utils:data_status_pipeline",
+        "//hw/rtl_utils/if:axi_stream_if",
+        "//hw/rx_fifo/rtl:rx_fifo_ctrl",
+        "//hw/rx_mac/rtl:crc_checker",
+        "//hw/rx_pcs/rtl:rx_pcs",
+    ],
+)

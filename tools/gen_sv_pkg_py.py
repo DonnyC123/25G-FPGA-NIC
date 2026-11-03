@@ -3,7 +3,7 @@
 The SV package is the single source of truth; this script parses it with
 pyslang and emits a matching .py module so testbench code never hand-copies
 localparam values (which silently drifts, e.g. alignment_finder_sequence.py
-once had CTRL_HDR/DATA_HDR backwards relative to common/pkg/pcs_pkg.sv).
+once had CTRL_HDR/DATA_HDR backwards relative to hw/common/pkg/pcs_pkg.sv).
 
 Usage:
     python tools/gen_sv_pkg_py.py <sv_file> <package_name> -o <output.py>

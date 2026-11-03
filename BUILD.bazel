@@ -1,19 +1,6 @@
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
-load("@rules_verilog//verilog:defs.bzl", "verilog_library")
 
 exports_files(["verible.filelist"])
-
-verilog_library(
-    name = "nic_top",
-    srcs = ["nic_top.sv"],
-    visibility = ["//tools:__pkg__"],
-    deps = [
-        "//rtl_utils:rst_sync",
-        "//rtl_utils/if:axi_stream_if",
-        "//rx_top/rtl:rx_top",
-        "//tx_top/rtl:tx_top",
-    ],
-)
 
 string_flag(
     name = "sim",

@@ -1,0 +1,41 @@
+load("@rules_cocotb//cocotb:cocotb_test.bzl", "cocotb_test")
+load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "rx_top_wrapper",
+    srcs = ["rx_top_wrapper.sv"],
+    visibility = ["//tools:__pkg__"],
+    deps = [
+        "//hw/rtl_utils/if:axi_stream_if",
+        "//hw/rx_top/rtl:rx_top",
+    ],
+)
+
+py_library(
+    name = "rx_top_tb",
+    srcs = ["rx_top_test_base.py"],
+    deps = [
+        "//hw/common/pkg:pcs_pkg_py",
+        "//hw/tb_utils",
+        "//hw/tb_utils/net",
+        "//tools/cocotb",
+    ],
+)
+
+cocotb_test(
+    name = "rx_top_test",
+    srcs = ["rx_top_test.py"],
+    module = ":rx_top_wrapper",
+    sim_opts = select({
+        "//:sim_questa": [
+            "-timescale",
+            "1ns/1ps",
+        ],
+        "//:sim_verilator": [
+            "--timescale",
+            "1ns/1ps",
+        ],
+    }),
+    deps = [":rx_top_tb"],
+)

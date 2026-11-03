@@ -1,0 +1,14 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "nic_top",
+    srcs = ["nic_top.sv"],
+    visibility = ["//tools:__pkg__"],
+    deps = [
+        "//hw/rtl_utils:rst_sync",
+        "//hw/rtl_utils/if:axi_stream_if",
+        "//hw/rx_pcs/rtl:rx_lock_watchdog",
+        "//hw/rx_top/rtl:rx_top",
+        "//hw/tx_top/rtl:tx_top",
+    ],
+)

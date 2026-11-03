@@ -1,0 +1,31 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "scrambler",
+    srcs = ["scrambler.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rtl_utils:data_status_pipeline",
+    ],
+)
+
+verilog_library(
+    name = "tx_gearbox",
+    srcs = ["tx_gearbox.sv"],
+    visibility = ["//visibility:public"],
+    deps = ["//hw/rtl_utils:data_status_pipeline"],
+)
+
+verilog_library(
+    name = "tx_pcs",
+    srcs = ["tx_pcs.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":scrambler",
+        ":tx_gearbox",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rtl_utils/if:tx_eth_stream_if",
+        "//hw/tx_mac/rtl:tx_framer",
+    ],
+)

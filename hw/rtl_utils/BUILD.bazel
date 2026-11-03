@@ -1,0 +1,36 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+RTL_UTILS_DEPS = {
+    "async_packet_fifo": [":shift_reg"],
+    "bram": [],
+    "crc32_word": ["//hw/common/pkg:crc32_pkg"],
+    "data_pipeline": [],
+    "data_status_pipeline": [":data_pipeline"],
+    "shift_reg": [],
+    "shift_reg_en": [],
+    "data_status_shift_reg": [":shift_reg"],
+    "data_status_shift_reg_en": [":shift_reg_en"],
+    "rst_sync": [],
+    "skid_buffer": [],
+    "fifo": [
+        ":bram",
+        "//hw/rtl_utils/if:fifo_rd_if",
+        "//hw/rtl_utils/if:fifo_wr_if",
+    ],
+}
+
+[
+    verilog_library(
+        name = name,
+        srcs = [name + ".sv"],
+        visibility = ["//visibility:public"],
+        deps = deps,
+    )
+    for name, deps in RTL_UTILS_DEPS.items()
+]
+
+verilog_library(
+    name = "rtl_utils",
+    visibility = ["//visibility:public"],
+    deps = [":" + name for name in RTL_UTILS_DEPS],
+)
