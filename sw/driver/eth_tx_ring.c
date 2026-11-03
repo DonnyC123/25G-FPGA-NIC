@@ -61,15 +61,16 @@ int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring)
 }
 
 void tx_xdma_desc_set(struct xdma_desc *hw_desc_ring_virt,
-		      dma_addr_t skb_phys, int len)
+		      dma_addr_t dma, int len, bool eop)
 {
 	/* Magic required by hardware; EOP asserts tlast; COMPLETED requests IRQ */
 	hw_desc_ring_virt->control =
-		cpu_to_le32(DESC_MAGIC | XDMA_DESC_EOP | XDMA_DESC_COMPLETED);
+		cpu_to_le32(DESC_MAGIC | (eop ? XDMA_DESC_EOP : 0) |
+			    XDMA_DESC_COMPLETED);
 	hw_desc_ring_virt->bytes = cpu_to_le32(len);
 
-	hw_desc_ring_virt->src_addr_lo = cpu_to_le32(PCI_DMA_L(skb_phys));
-	hw_desc_ring_virt->src_addr_hi = cpu_to_le32(PCI_DMA_H(skb_phys));
+	hw_desc_ring_virt->src_addr_lo = cpu_to_le32(PCI_DMA_L(dma));
+	hw_desc_ring_virt->src_addr_hi = cpu_to_le32(PCI_DMA_H(dma));
 
 	/* FIFO beginning on card */
 	hw_desc_ring_virt->dst_addr_lo = cpu_to_le32(PCI_DMA_L(0));

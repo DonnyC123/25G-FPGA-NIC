@@ -46,7 +46,7 @@ int wr_sgdma_desc_regs_rx(struct xdma_rx_ring *rx_ring)
 }
 
 void rx_xdma_desc_set(struct xdma_rx_ring *rx_ring, u32 idx,
-		      dma_addr_t sk_buff_phys, int len)
+		      dma_addr_t dma, int len)
 {
 	struct xdma_desc *desc = rx_ring->hw_desc_ring_virt + idx;
 	/* src_addr is the result writeback address for C2H, not a data source. */
@@ -62,8 +62,8 @@ void rx_xdma_desc_set(struct xdma_rx_ring *rx_ring, u32 idx,
 	desc->src_addr_lo = cpu_to_le32(PCI_DMA_L(wb_phys));
 	desc->src_addr_hi = cpu_to_le32(PCI_DMA_H(wb_phys));
 
-	desc->dst_addr_lo = cpu_to_le32(PCI_DMA_L(sk_buff_phys));
-	desc->dst_addr_hi = cpu_to_le32(PCI_DMA_H(sk_buff_phys));
+	desc->dst_addr_lo = cpu_to_le32(PCI_DMA_L(dma));
+	desc->dst_addr_hi = cpu_to_le32(PCI_DMA_H(dma));
 
 	desc->next_lo = cpu_to_le32(PCI_DMA_L(next_phys));
 	desc->next_hi = cpu_to_le32(PCI_DMA_H(next_phys));
@@ -242,32 +242,59 @@ void rx_ring_free(struct net_device_priv *xndev)
 	xndev->rx_ring = NULL;
 }
 
-int alloc_rx_sk_buff(struct xdma_rx_ring *rx_ring)
+static int rx_page_pool_create(struct xdma_rx_ring *rx_ring)
+{
+	struct page_pool_params params = {
+		.flags = PP_FLAG_DMA_MAP | PP_FLAG_DMA_SYNC_DEV,
+		.order = 0,
+		.pool_size = rx_ring->count,
+		.nid = dev_to_node(rx_ring->dev),
+		.dev = rx_ring->dev,
+		.napi = &rx_ring->napi,
+		.dma_dir = DMA_FROM_DEVICE,
+		.offset = RX_HEADROOM,
+		.max_len = rx_ring->buffer_len,
+	};
+	struct page_pool *pool;
+
+	pool = page_pool_create(&params);
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+
+	rx_ring->page_pool = pool;
+	return 0;
+}
+
+int alloc_rx_pages(struct xdma_rx_ring *rx_ring)
 {
 	size_t buff_idx;
+	int rv;
+
+	/* build_skb needs the headroom and shared info around the frame. */
+	BUILD_BUG_ON(RX_HEADROOM + RX_BUFFER_LEN +
+		     SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) > PAGE_SIZE);
+
+	rv = rx_page_pool_create(rx_ring);
+	if (rv) {
+		pr_err("Failed to create page_pool: %d\n", rv);
+		return rv;
+	}
 
 	for (buff_idx = 0; buff_idx < rx_ring->count; buff_idx++) {
-		struct sk_buff *skb;
-		dma_addr_t sk_buff_phys;
+		struct xdma_rx_buffer_info *bi = &rx_ring->sw_ring[buff_idx];
+		struct page *page;
 
-		skb = napi_alloc_skb(&rx_ring->napi, rx_ring->buffer_len);
-		if (unlikely(!skb)) {
-			pr_err("Failed to allocate sk_buff (idx=%lu)\n", buff_idx);
-			goto err_out;
+		page = page_pool_alloc_pages(rx_ring->page_pool, GFP_KERNEL);
+		if (unlikely(!page)) {
+			pr_err("Failed to allocate page (idx=%zu)\n", buff_idx);
+			free_rx_pages(rx_ring);
+			return -ENOMEM;
 		}
 
-		sk_buff_phys = dma_map_single(rx_ring->dev, skb->data, rx_ring->buffer_len,
-					      DMA_FROM_DEVICE);
-		if (unlikely(dma_mapping_error(rx_ring->dev, sk_buff_phys))) {
-			kfree_skb(skb);
-			pr_err("Failed map sk_buff to dma addr (idx=%zu)\n", buff_idx);
-			goto err_out;
-		}
+		bi->page = page;
+		bi->dma = page_pool_get_dma_addr(page) + RX_HEADROOM;
 
-		rx_ring->sw_ring[buff_idx].skb = skb;
-		rx_ring->sw_ring[buff_idx].sk_buff_phys = sk_buff_phys;
-
-		rx_xdma_desc_set(rx_ring, buff_idx, sk_buff_phys, rx_ring->buffer_len);
+		rx_xdma_desc_set(rx_ring, buff_idx, bi->dma, rx_ring->buffer_len);
 	}
 
 	rx_ring->driver_ci = 0;
@@ -275,33 +302,24 @@ int alloc_rx_sk_buff(struct xdma_rx_ring *rx_ring)
 	dma_wmb();
 
 	return 0;
-
-err_out:
-	for (size_t i = 0; i < buff_idx; i++) {
-		struct sk_buff *skb = rx_ring->sw_ring[i].skb;
-		dma_addr_t sk_buff_phys = rx_ring->sw_ring[i].sk_buff_phys;
-
-		dma_unmap_single(rx_ring->dev, sk_buff_phys, rx_ring->buffer_len,
-				 DMA_FROM_DEVICE);
-		kfree_skb(skb);
-	}
-	return -ENOMEM;
 }
 
-void free_rx_sk_buff(struct xdma_rx_ring *rx_ring)
+void free_rx_pages(struct xdma_rx_ring *rx_ring)
 {
-	for (size_t i = 0; i < rx_ring->count; i++) {
-		struct sk_buff *skb = rx_ring->sw_ring[i].skb;
+	if (!rx_ring->page_pool)
+		return;
 
-		if (skb) {
-			dma_addr_t sk_buff_phys = rx_ring->sw_ring[i].sk_buff_phys;
-			dma_unmap_single(rx_ring->dev, sk_buff_phys, rx_ring->buffer_len,
-					 DMA_FROM_DEVICE);
-			kfree_skb(skb);
-		}
-		rx_ring->sw_ring[i].skb = NULL;
-		rx_ring->sw_ring[i].sk_buff_phys = 0;
+	for (size_t i = 0; i < rx_ring->count; i++) {
+		struct xdma_rx_buffer_info *bi = &rx_ring->sw_ring[i];
+
+		if (bi->page)
+			page_pool_put_full_page(rx_ring->page_pool, bi->page, false);
+		bi->page = NULL;
+		bi->dma = 0;
 	}
+
+	page_pool_destroy(rx_ring->page_pool);
+	rx_ring->page_pool = NULL;
 }
 
 static irqreturn_t rx_irq_handler(int irq, void *dev_id)
@@ -358,7 +376,7 @@ int configure_rx(struct net_device_priv *xndev)
 		return -EINVAL;
 	}
 
-	if ((rv = alloc_rx_sk_buff(rx_ring)))
+	if ((rv = alloc_rx_pages(rx_ring)))
 		return rv;
 
 	if ((rv = wr_sgdma_desc_regs_rx(rx_ring)))
@@ -383,6 +401,6 @@ err_start_sgdma:
 err_request_irq:
 	napi_disable(&rx_ring->napi);
 err_wr_desc_regs:
-	free_rx_sk_buff(rx_ring);
+	free_rx_pages(rx_ring);
 	return rv;
 }

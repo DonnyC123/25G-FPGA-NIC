@@ -29,6 +29,8 @@
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
 
+#include <net/page_pool/helpers.h>
+
 #include "libxdma.h"
 #include "xdma_thread.h"
 
@@ -57,25 +59,28 @@
 
 #define WATCHDOG_PERIOD (5 * HZ)
 #define RX_BUFFER_LEN 2048
+#define RX_HEADROOM NET_SKB_PAD
+#define TX_DESC_NEEDED (MAX_SKB_FRAGS + 1)
 #define SGDMA_TIMEOUT 50
-#define MAX_NAPI_PACKETS_PER_CALL 64
 #define XDMA_C2H_CREDIT_MAX 1023
 
 
 struct xdma_rx_buffer_info {
-  /** The sk_buff holding the empty buffer we posted. */
-  struct sk_buff *skb;
-  /** The DMA (bus) address of the sk_buff's data. */
-  dma_addr_t sk_buff_phys;
+  /** The page_pool page posted to the device. */
+  struct page *page;
+  /** The DMA (bus) address the device writes the frame to. */
+  dma_addr_t dma;
 };
 
 struct xdma_tx_buffer_info {
-  /** The sk_buff holding the empty buffer we posted. */
+  /** Set on the last descriptor of a frame only. */
   struct sk_buff *skb;
-  /** The DMA (bus) address of the sk_buff's data. */
-  dma_addr_t sk_buff_phys;
-  // Store length of dma mapped buffer
+  /** The DMA (bus) address of this descriptor's fragment. */
+  dma_addr_t dma;
+  /** Length of the DMA mapped fragment. */
   u32 dma_len;
+  /** Mapped with skb_frag_dma_map rather than dma_map_single. */
+  bool is_page;
 };
 
 struct xdma_rx_ring {
@@ -93,6 +98,9 @@ struct xdma_rx_ring {
 
   /** Pointer to our parallel software descriptor ring. */
   struct xdma_rx_buffer_info *sw_ring;
+
+  /** Recycles DMA mapped RX pages. Exists while the interface is up. */
+  struct page_pool *page_pool;
 
   /** Total number of descriptors in the ring (e.g., 256). */
   u32 count;
@@ -166,10 +174,10 @@ void rx_ring_free(struct net_device_priv *xndev);
 int wr_sgdma_desc_regs_rx(struct xdma_rx_ring *rx_ring);
 int start_rx_sgdma(struct xdma_rx_ring *rx_ring);
 int stop_rx_sgdma(struct xdma_rx_ring *rx_ring);
-int alloc_rx_sk_buff(struct xdma_rx_ring *rx_ring);
-void free_rx_sk_buff(struct xdma_rx_ring *rx_ring);
+int alloc_rx_pages(struct xdma_rx_ring *rx_ring);
+void free_rx_pages(struct xdma_rx_ring *rx_ring);
 void rx_xdma_desc_set(struct xdma_rx_ring *rx_ring, u32 idx,
-                      dma_addr_t sk_buff_phys, int len);
+                      dma_addr_t dma, int len);
 int configure_rx(struct net_device_priv *xndev);
 
 /* eth_tx_ring.c */
@@ -179,7 +187,7 @@ int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring);
 int start_tx_sgdma(struct xdma_tx_ring *tx_ring);
 int stop_tx_sgdma(struct xdma_tx_ring *tx_ring);
 void tx_xdma_desc_set(struct xdma_desc *hw_desc_ring_virt,
-                      dma_addr_t skb_phys, int len);
+                      dma_addr_t dma, int len, bool eop);
 int configure_tx(struct net_device_priv *xndev);
 
 /* eth_netdev.c */
