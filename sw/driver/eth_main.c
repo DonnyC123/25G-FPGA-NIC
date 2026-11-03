@@ -113,7 +113,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct net_device *net_dev;
 	struct net_device_priv *xndev;
 	struct xdma_dev *xdev;
-	void *hndl;
+	void *hndl = NULL;
 	int rv;
 	const unsigned char my_mac_addr[ETH_ALEN] = {0x00, 0x0A, 0x35,
 						      0x01, 0x02, 0x03};
@@ -224,8 +224,8 @@ err_register_netdev:
 err_tx_ring_init:
 	rx_ring_free(xndev);
 err_out:
-	pr_info("xdev 0x%p xdma_device_close.\n", xdev);
-	xdma_device_close(pdev, xdev);
+	pr_info("xdev 0x%p xdma_device_close.\n", hndl);
+	xdma_device_close(pdev, hndl);
 	xpdev_cnt--;
 
 	pr_err("pdev 0x%p, err %d.\n", pdev, rv);

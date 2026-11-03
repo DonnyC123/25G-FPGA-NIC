@@ -1,0 +1,7 @@
+Diagnostics:
+  ClangTidy:
+    FastCheckFilter: None
+  UnusedIncludes: None
+  MissingIncludes: None
+InlayHints:
+  Enabled: false

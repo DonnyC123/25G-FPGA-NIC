@@ -1,0 +1,5 @@
+If:
+  PathExclude: driver/.*
+Diagnostics:
+  UnusedIncludes: Strict
+  MissingIncludes: Strict

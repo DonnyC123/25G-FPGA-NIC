@@ -1,0 +1,24 @@
+BasedOnStyle: LLVM
+Language: Cpp
+ColumnLimit: 80
+IndentWidth: 8
+TabWidth: 8
+UseTab: Always
+ContinuationIndentWidth: 8
+BreakBeforeBraces: Linux
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlignAfterOpenBracket: Align
+AlignConsecutiveMacros: Consecutive
+AlignEscapedNewlines: Left
+IndentCaseLabels: false
+PointerAlignment: Right
+SortIncludes: Never
+ForEachMacros:
+  - list_for_each
+  - list_for_each_entry
+  - list_for_each_entry_safe
+  - list_for_each_safe

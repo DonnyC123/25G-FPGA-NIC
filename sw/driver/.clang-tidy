@@ -1,0 +1,15 @@
+InheritParentConfig: false
+Checks: >-
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  -bugprone-assignment-in-if-condition,
+  -bugprone-branch-clone,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-macro-parentheses,
+  -bugprone-narrowing-conversions,
+  -bugprone-reserved-identifier,
+  -clang-analyzer-security.insecureAPI.*
+HeaderFilterRegex: 'sw/driver/[^/]*\.h$'
+FormatStyle: file

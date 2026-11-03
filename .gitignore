@@ -29,3 +29,6 @@ sw/driver/.*.cmd
 sw/driver/.*.d
 sw/driver/Module.symvers
 sw/driver/modules.order
+
+# Downloaded by sw/fetch_kernel_headers.sh
+sw/kernel-headers/
