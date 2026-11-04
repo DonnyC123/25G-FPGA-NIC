@@ -1,11 +1,11 @@
 BasedOnStyle: LLVM
 Language: Cpp
-ColumnLimit: 80
+ColumnLimit: 120
 IndentWidth: 8
 TabWidth: 8
 UseTab: Always
 ContinuationIndentWidth: 8
-BreakBeforeBraces: Linux
+BreakBeforeBraces: Attach
 AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: None

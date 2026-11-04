@@ -11,8 +11,7 @@
 #define DRV_MODULE_NAME "eth_mod"
 #define DRV_MODULE_DESC "XDMA Ethernet Driver Module"
 
-static const char version[] =
-	DRV_MODULE_DESC " " DRV_MODULE_NAME " v" DRV_MODULE_VERSION "\n";
+static const char version[] = DRV_MODULE_DESC " " DRV_MODULE_NAME " v" DRV_MODULE_VERSION "\n";
 
 MODULE_AUTHOR("Donald Carl");
 MODULE_DESCRIPTION(DRV_MODULE_DESC);
@@ -21,7 +20,7 @@ MODULE_LICENSE("GPL");
 
 static int xpdev_cnt;
 
-/* clang-format off */
+// clang-format off
 static const struct pci_device_id pci_ids[] = {
 { PCI_DEVICE(0x10ee, 0x9048), },
 { PCI_DEVICE(0x10ee, 0x9044), },
@@ -85,19 +84,17 @@ static const struct pci_device_id pci_ids[] = {
 
 { PCI_DEVICE(0x1d0f, 0x1042), 0 },
 
-/* aws */
+// aws
 { PCI_DEVICE(0x1d0f, 0xf000), },
 { PCI_DEVICE(0x1d0f, 0xf001), },
 
 { 0 }
 };
-/* clang-format on */
+// clang-format on
 
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
-static void init_net_dev_priv(struct net_device_priv *xndev,
-			      struct pci_dev *pdev)
-{
+static void init_net_dev_priv(struct net_device_priv *xndev, struct pci_dev *pdev) {
 	memset(xndev, 0, sizeof(*xndev));
 
 	xndev->magic = MAGIC_DEVICE;
@@ -109,15 +106,13 @@ static void init_net_dev_priv(struct net_device_priv *xndev,
 	xpdev_cnt++;
 }
 
-static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
-{
+static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id) {
 	struct net_device *net_dev;
 	struct net_device_priv *xndev;
 	struct xdma_dev *xdev;
 	void *hndl = NULL;
 	int rv;
-	const unsigned char my_mac_addr[ETH_ALEN] = {0x00, 0x0A, 0x35,
-						     0x01, 0x02, 0x03};
+	const unsigned char my_mac_addr[ETH_ALEN] = {0x00, 0x0A, 0x35, 0x01, 0x02, 0x03};
 
 	pr_info("My driver: Found a matching device!\n");
 	net_dev = alloc_etherdev(sizeof(*xndev));
@@ -128,8 +123,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	init_net_dev_priv(xndev, pdev);
 	xndev->net_dev = net_dev;
 
-	hndl = xdma_netdev_open(DRV_MODULE_NAME, pdev, &xndev->user_max,
-				&xndev->h2c_channel_max,
+	hndl = xdma_netdev_open(DRV_MODULE_NAME, pdev, &xndev->user_max, &xndev->h2c_channel_max,
 				&xndev->c2h_channel_max);
 	if (!hndl) {
 		rv = -EINVAL;
@@ -165,7 +159,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 			goto err_out;
 	}
 
-	/* make sure no duplicate */
+	// make sure no duplicate
 	xdev = xdev_find_by_pdev(pdev);
 	if (!xdev) {
 		pr_warn("No xdev found!\n");
@@ -179,10 +173,8 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_out;
 	}
 
-	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, usr %d, ch %d,%d.\n",
-		dev_name(&pdev->dev), xdev->idx, pdev, xndev, xdev,
-		xndev->user_max, xndev->h2c_channel_max,
-		xndev->c2h_channel_max);
+	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, usr %d, ch %d,%d.\n", dev_name(&pdev->dev), xdev->idx, pdev,
+		xndev, xdev, xndev->user_max, xndev->h2c_channel_max, xndev->c2h_channel_max);
 
 	xndev->xdev = hndl;
 
@@ -235,8 +227,7 @@ err_out:
 	return rv;
 }
 
-static void remove_one(struct pci_dev *pdev)
-{
+static void remove_one(struct pci_dev *pdev) {
 	struct net_device *net_dev = pci_get_drvdata(pdev);
 	struct net_device_priv *xndev;
 	struct xdma_dev *xdev;
@@ -266,14 +257,12 @@ static struct pci_driver pci_driver = {
 	.remove = remove_one,
 };
 
-static int eth_xdma_mod_init(void)
-{
+static int eth_xdma_mod_init(void) {
 	pr_info("%s", version);
 	return pci_register_driver(&pci_driver);
 }
 
-static void eth_xdma_mod_exit(void)
-{
+static void eth_xdma_mod_exit(void) {
 	dbg_init("pci_unregister_driver.\n");
 	pci_unregister_driver(&pci_driver);
 }

@@ -2,8 +2,7 @@
 
 #include "eth_mod.h"
 
-static int wr_sgdma_desc_regs_rx(struct xdma_rx_ring *rx_ring)
-{
+static int wr_sgdma_desc_regs_rx(struct xdma_rx_ring *rx_ring) {
 	struct xdma_engine *engine;
 	struct engine_sgdma_regs *sgdma;
 	u32 w;
@@ -17,54 +16,35 @@ static int wr_sgdma_desc_regs_rx(struct xdma_rx_ring *rx_ring)
 	sgdma = engine->sgdma_regs;
 
 	w = cpu_to_le32(PCI_DMA_L(rx_ring->hw_desc_ring_phys));
-	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_lo)\n", w,
-		(void *)&sgdma->first_desc_lo);
-	write_register(w, &sgdma->first_desc_lo,
-		       (unsigned long)&sgdma->first_desc_lo -
-			       (unsigned long)sgdma);
+	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_lo)\n", w, (void *)&sgdma->first_desc_lo);
+	write_register(w, &sgdma->first_desc_lo, (unsigned long)&sgdma->first_desc_lo - (unsigned long)sgdma);
 
 	w = cpu_to_le32(PCI_DMA_H(rx_ring->hw_desc_ring_phys));
-	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_hi)\n", w,
-		(void *)&sgdma->first_desc_hi);
-	write_register(w, &sgdma->first_desc_hi,
-		       (unsigned long)&sgdma->first_desc_hi -
-			       (unsigned long)sgdma);
+	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_hi)\n", w, (void *)&sgdma->first_desc_hi);
+	write_register(w, &sgdma->first_desc_hi, (unsigned long)&sgdma->first_desc_hi - (unsigned long)sgdma);
 
-	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_adjacent)\n", 0,
-		(void *)&sgdma->first_desc_adjacent);
+	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_adjacent)\n", 0, (void *)&sgdma->first_desc_adjacent);
 	write_register(0, &sgdma->first_desc_adjacent,
-		       (unsigned long)&sgdma->first_desc_adjacent -
-			       (unsigned long)sgdma);
+		       (unsigned long)&sgdma->first_desc_adjacent - (unsigned long)sgdma);
 
-	/* Clamp initial grant: desc_max can exceed the 10-bit credit field. */
+	// Clamp initial grant: desc_max can exceed the 10-bit credit field.
 	w = cpu_to_le32(min_t(u32, rx_ring->count, XDMA_C2H_CREDIT_MAX));
-	pr_info("rx_ring->count=%u, granting initial credits=%u\n",
-		rx_ring->count, le32_to_cpu(w));
-	dbg_tfr("iowrite32(0x%08x to 0x%p) (credits)\n", w,
-		(void *)&sgdma->credits);
-	write_register(w, &sgdma->credits,
-		       (unsigned long)&sgdma->credits - (unsigned long)sgdma);
+	pr_info("rx_ring->count=%u, granting initial credits=%u\n", rx_ring->count, le32_to_cpu(w));
+	dbg_tfr("iowrite32(0x%08x to 0x%p) (credits)\n", w, (void *)&sgdma->credits);
+	write_register(w, &sgdma->credits, (unsigned long)&sgdma->credits - (unsigned long)sgdma);
 
 	w = read_register(&engine->regs->status);
-	dbg_tfr("ioread32(0x%p) = 0x%08x (dummy read flushes writes).\n",
-		&engine->regs->status, w);
+	dbg_tfr("ioread32(0x%p) = 0x%08x (dummy read flushes writes).\n", &engine->regs->status, w);
 
 	return 0;
 }
 
-void rx_xdma_desc_set(struct xdma_rx_ring *rx_ring, u32 idx, dma_addr_t dma,
-		      int len)
-{
+void rx_xdma_desc_set(struct xdma_rx_ring *rx_ring, u32 idx, dma_addr_t dma, int len) {
 	struct xdma_desc *desc = rx_ring->hw_desc_ring_virt + idx;
-	/* src_addr is the result writeback address for C2H, not a data source.
-	 */
-	dma_addr_t wb_phys =
-		rx_ring->hw_res_ring_phys +
-		(dma_addr_t)idx * sizeof(*rx_ring->hw_res_ring_virt);
+	// src_addr is the result writeback address for C2H, not a data source.
+	dma_addr_t wb_phys = rx_ring->hw_res_ring_phys + (dma_addr_t)idx * sizeof(*rx_ring->hw_res_ring_virt);
 	u32 next_idx = (idx + 1) % rx_ring->count;
-	dma_addr_t next_phys =
-		rx_ring->hw_desc_ring_phys +
-		(dma_addr_t)next_idx * sizeof(*rx_ring->hw_desc_ring_virt);
+	dma_addr_t next_phys = rx_ring->hw_desc_ring_phys + (dma_addr_t)next_idx * sizeof(*rx_ring->hw_desc_ring_virt);
 
 	desc->control = cpu_to_le32(DESC_MAGIC | XDMA_DESC_COMPLETED);
 	desc->bytes = cpu_to_le32(len);
@@ -79,8 +59,7 @@ void rx_xdma_desc_set(struct xdma_rx_ring *rx_ring, u32 idx, dma_addr_t dma,
 	desc->next_hi = cpu_to_le32(PCI_DMA_H(next_phys));
 }
 
-static int start_rx_sgdma(struct xdma_rx_ring *rx_ring)
-{
+static int start_rx_sgdma(struct xdma_rx_ring *rx_ring) {
 	struct xdma_engine *engine;
 	struct engine_regs *regs;
 	u32 w;
@@ -94,10 +73,8 @@ static int start_rx_sgdma(struct xdma_rx_ring *rx_ring)
 
 	regs = engine->regs;
 
-	write_register(XDMA_CTRL_IE_DESC_COMPLETED,
-		       &regs->interrupt_enable_mask_w1s,
-		       (unsigned long)&regs->interrupt_enable_mask_w1s -
-			       (unsigned long)regs);
+	write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->interrupt_enable_mask_w1s,
+		       (unsigned long)&regs->interrupt_enable_mask_w1s - (unsigned long)regs);
 
 	write_register(XDMA_CTRL_RUN_AND_IE, &regs->control_w1s,
 		       (unsigned long)&regs->control_w1s - (unsigned long)regs);
@@ -116,8 +93,7 @@ static int start_rx_sgdma(struct xdma_rx_ring *rx_ring)
 	return 0;
 }
 
-int stop_rx_sgdma(struct xdma_rx_ring *rx_ring)
-{
+int stop_rx_sgdma(struct xdma_rx_ring *rx_ring) {
 	struct xdma_engine *engine;
 	struct engine_regs *regs;
 	u32 w;
@@ -131,13 +107,10 @@ int stop_rx_sgdma(struct xdma_rx_ring *rx_ring)
 
 	regs = engine->regs;
 
-	write_register(XDMA_CTRL_RUN_STOP, &regs->control_w1c,
-		       (unsigned long)&regs->control_w1c - (unsigned long)regs);
+	write_register(XDMA_CTRL_RUN_STOP, &regs->control_w1c, (unsigned long)&regs->control_w1c - (unsigned long)regs);
 
-	write_register(XDMA_CTRL_IE_DESC_COMPLETED,
-		       &regs->interrupt_enable_mask_w1c,
-		       (unsigned long)&regs->interrupt_enable_mask_w1c -
-			       (unsigned long)regs);
+	write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->interrupt_enable_mask_w1c,
+		       (unsigned long)&regs->interrupt_enable_mask_w1c - (unsigned long)regs);
 
 	w = read_register(&regs->status);
 	while ((w & XDMA_STAT_BUSY) && timeout--) {
@@ -153,8 +126,7 @@ int stop_rx_sgdma(struct xdma_rx_ring *rx_ring)
 	return 0;
 }
 
-int rx_ring_init(struct net_device_priv *xndev)
-{
+int rx_ring_init(struct net_device_priv *xndev) {
 	struct xdma_rx_ring *rx_ring;
 	struct xdma_dev *xdev;
 	struct xdma_engine *c2h_engine;
@@ -179,27 +151,21 @@ int rx_ring_init(struct net_device_priv *xndev)
 	rx_ring->net_dev = xndev->net_dev;
 	rx_ring->buffer_len = RX_BUFFER_LEN;
 
-	hw_desc_ring_size =
-		sizeof(*rx_ring->hw_desc_ring_virt) * c2h_engine->desc_max;
-	hw_res_ring_size =
-		sizeof(*rx_ring->hw_res_ring_virt) * c2h_engine->desc_max;
+	hw_desc_ring_size = sizeof(*rx_ring->hw_desc_ring_virt) * c2h_engine->desc_max;
+	hw_res_ring_size = sizeof(*rx_ring->hw_res_ring_virt) * c2h_engine->desc_max;
 	sw_ring_size = sizeof(*rx_ring->sw_ring) * c2h_engine->desc_max;
 
 	rx_ring->hw_desc_ring_virt =
-		dma_alloc_coherent(rx_ring->dev, hw_desc_ring_size,
-				   &rx_ring->hw_desc_ring_phys, GFP_KERNEL);
+		dma_alloc_coherent(rx_ring->dev, hw_desc_ring_size, &rx_ring->hw_desc_ring_phys, GFP_KERNEL);
 	if (!rx_ring->hw_desc_ring_virt) {
-		pr_err("Failed to allocate HW descriptor ring (size=%zu)\n",
-		       hw_desc_ring_size);
+		pr_err("Failed to allocate HW descriptor ring (size=%zu)\n", hw_desc_ring_size);
 		goto err_hw_desc_ring;
 	}
 
 	rx_ring->hw_res_ring_virt =
-		dma_alloc_coherent(rx_ring->dev, hw_res_ring_size,
-				   &rx_ring->hw_res_ring_phys, GFP_KERNEL);
+		dma_alloc_coherent(rx_ring->dev, hw_res_ring_size, &rx_ring->hw_res_ring_phys, GFP_KERNEL);
 	if (!rx_ring->hw_res_ring_virt) {
-		pr_err("Failed to allocate HW response ring (size=%zu)\n",
-		       hw_res_ring_size);
+		pr_err("Failed to allocate HW response ring (size=%zu)\n", hw_res_ring_size);
 		goto err_hw_res_ring;
 	}
 	memset(rx_ring->hw_res_ring_virt, 0, hw_res_ring_size);
@@ -215,19 +181,15 @@ int rx_ring_init(struct net_device_priv *xndev)
 	return 0;
 
 err_sw_ring:
-	dma_free_coherent(rx_ring->dev, hw_res_ring_size,
-			  rx_ring->hw_res_ring_virt, rx_ring->hw_res_ring_phys);
+	dma_free_coherent(rx_ring->dev, hw_res_ring_size, rx_ring->hw_res_ring_virt, rx_ring->hw_res_ring_phys);
 err_hw_res_ring:
-	dma_free_coherent(rx_ring->dev, hw_desc_ring_size,
-			  rx_ring->hw_desc_ring_virt,
-			  rx_ring->hw_desc_ring_phys);
+	dma_free_coherent(rx_ring->dev, hw_desc_ring_size, rx_ring->hw_desc_ring_virt, rx_ring->hw_desc_ring_phys);
 err_hw_desc_ring:
 	kfree(rx_ring);
 	return -ENOMEM;
 }
 
-void rx_ring_free(struct net_device_priv *xndev)
-{
+void rx_ring_free(struct net_device_priv *xndev) {
 	struct xdma_rx_ring *rx_ring;
 	struct xdma_engine *c2h_engine;
 	size_t hw_desc_ring_size;
@@ -239,28 +201,22 @@ void rx_ring_free(struct net_device_priv *xndev)
 
 	c2h_engine = rx_ring->c2h_engine;
 
-	hw_desc_ring_size =
-		sizeof(*rx_ring->hw_desc_ring_virt) * c2h_engine->desc_max;
-	hw_res_ring_size =
-		sizeof(*rx_ring->hw_res_ring_virt) * c2h_engine->desc_max;
+	hw_desc_ring_size = sizeof(*rx_ring->hw_desc_ring_virt) * c2h_engine->desc_max;
+	hw_res_ring_size = sizeof(*rx_ring->hw_res_ring_virt) * c2h_engine->desc_max;
 
 	netif_napi_del(&rx_ring->napi);
 
 	kfree(rx_ring->sw_ring);
 
-	dma_free_coherent(rx_ring->dev, hw_res_ring_size,
-			  rx_ring->hw_res_ring_virt, rx_ring->hw_res_ring_phys);
+	dma_free_coherent(rx_ring->dev, hw_res_ring_size, rx_ring->hw_res_ring_virt, rx_ring->hw_res_ring_phys);
 
-	dma_free_coherent(rx_ring->dev, hw_desc_ring_size,
-			  rx_ring->hw_desc_ring_virt,
-			  rx_ring->hw_desc_ring_phys);
+	dma_free_coherent(rx_ring->dev, hw_desc_ring_size, rx_ring->hw_desc_ring_virt, rx_ring->hw_desc_ring_phys);
 
 	kfree(rx_ring);
 	xndev->rx_ring = NULL;
 }
 
-static int rx_page_pool_create(struct xdma_rx_ring *rx_ring)
-{
+static int rx_page_pool_create(struct xdma_rx_ring *rx_ring) {
 	struct page_pool_params params = {
 		.flags = PP_FLAG_DMA_MAP | PP_FLAG_DMA_SYNC_DEV,
 		.order = 0,
@@ -282,15 +238,12 @@ static int rx_page_pool_create(struct xdma_rx_ring *rx_ring)
 	return 0;
 }
 
-static int alloc_rx_pages(struct xdma_rx_ring *rx_ring)
-{
+static int alloc_rx_pages(struct xdma_rx_ring *rx_ring) {
 	size_t buff_idx;
 	int rv;
 
-	/* build_skb needs the headroom and shared info around the frame. */
-	BUILD_BUG_ON(RX_HEADROOM + RX_BUFFER_LEN +
-			     SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) >
-		     PAGE_SIZE);
+	// build_skb needs the headroom and shared info around the frame.
+	BUILD_BUG_ON(RX_HEADROOM + RX_BUFFER_LEN + SKB_DATA_ALIGN(sizeof(struct skb_shared_info)) > PAGE_SIZE);
 
 	rv = rx_page_pool_create(rx_ring);
 	if (rv) {
@@ -312,8 +265,7 @@ static int alloc_rx_pages(struct xdma_rx_ring *rx_ring)
 		bi->page = page;
 		bi->dma = page_pool_get_dma_addr(page) + RX_HEADROOM;
 
-		rx_xdma_desc_set(rx_ring, buff_idx, bi->dma,
-				 rx_ring->buffer_len);
+		rx_xdma_desc_set(rx_ring, buff_idx, bi->dma, rx_ring->buffer_len);
 	}
 
 	rx_ring->driver_ci = 0;
@@ -323,8 +275,7 @@ static int alloc_rx_pages(struct xdma_rx_ring *rx_ring)
 	return 0;
 }
 
-void free_rx_pages(struct xdma_rx_ring *rx_ring)
-{
+void free_rx_pages(struct xdma_rx_ring *rx_ring) {
 	if (!rx_ring->page_pool)
 		return;
 
@@ -332,8 +283,7 @@ void free_rx_pages(struct xdma_rx_ring *rx_ring)
 		struct xdma_rx_buffer_info *bi = &rx_ring->sw_ring[i];
 
 		if (bi->page)
-			page_pool_put_full_page(rx_ring->page_pool, bi->page,
-						false);
+			page_pool_put_full_page(rx_ring->page_pool, bi->page, false);
 		bi->page = NULL;
 		bi->dma = 0;
 	}
@@ -342,8 +292,7 @@ void free_rx_pages(struct xdma_rx_ring *rx_ring)
 	rx_ring->page_pool = NULL;
 }
 
-static irqreturn_t rx_irq_handler(int irq, void *dev_id)
-{
+static irqreturn_t rx_irq_handler(int irq, void *dev_id) {
 	u32 w;
 	struct net_device_priv *xndev;
 	struct xdma_rx_ring *rx_ring;
@@ -361,14 +310,11 @@ static irqreturn_t rx_irq_handler(int irq, void *dev_id)
 
 	regs = engine->regs;
 
-	write_register(XDMA_CTRL_IE_DESC_COMPLETED,
-		       &regs->interrupt_enable_mask_w1c,
-		       (unsigned long)&regs->interrupt_enable_mask_w1c -
-			       (unsigned long)regs);
+	write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->interrupt_enable_mask_w1c,
+		       (unsigned long)&regs->interrupt_enable_mask_w1c - (unsigned long)regs);
 
-	/* W1C status.descriptor_completed to re-arm the MSI-X edge. */
-	write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->status,
-		       (unsigned long)&regs->status - (unsigned long)regs);
+	// W1C status.descriptor_completed to re-arm the MSI-X edge.
+	write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->status, (unsigned long)&regs->status - (unsigned long)regs);
 	w = read_register(&regs->status);
 	dbg_tfr("status after W1C clear = 0x%08x\n", w);
 
@@ -377,8 +323,7 @@ static irqreturn_t rx_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-int configure_rx(struct net_device_priv *xndev)
-{
+int configure_rx(struct net_device_priv *xndev) {
 	int rv;
 	struct xdma_rx_ring *rx_ring;
 	struct xdma_engine *c2h_engine;
@@ -403,8 +348,7 @@ int configure_rx(struct net_device_priv *xndev)
 
 	napi_enable(&rx_ring->napi);
 
-	rv = request_irq(c2h_engine->msix_irq_line, rx_irq_handler, 0,
-			 xndev->net_dev->name, xndev);
+	rv = request_irq(c2h_engine->msix_irq_line, rx_irq_handler, 0, xndev->net_dev->name, xndev);
 	if (rv) {
 		pr_info("failed to request irq.\n");
 		goto err_request_irq;
