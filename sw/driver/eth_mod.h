@@ -16,8 +16,6 @@
 #include "libxdma.h"
 #include "xdma_thread.h"
 
-#define SGDMA_COMMON_OFFSET (6 * TARGET_SPACING)
-
 #ifdef __LIBXDMA_DEBUG__
 #define write_register(v, mem, off) __write_register(__func__, v, mem, off)
 #else
@@ -29,12 +27,13 @@
 	 XDMA_CTRL_IE_DESC_ALIGN_MISMATCH | XDMA_CTRL_IE_MAGIC_STOPPED | XDMA_CTRL_IE_IDLE_STOPPED | \
 	 XDMA_CTRL_IE_READ_ERROR | XDMA_CTRL_IE_DESC_ERROR)
 
-#define WATCHDOG_PERIOD	    (5 * HZ)
-#define RX_BUFFER_LEN	    2048
-#define RX_HEADROOM	    NET_SKB_PAD
-#define TX_DESC_NEEDED	    (MAX_SKB_FRAGS + 1)
-#define SGDMA_TIMEOUT	    50
-#define XDMA_C2H_CREDIT_MAX 1023
+#define WATCHDOG_PERIOD	   (5 * HZ)
+#define RX_BUFFER_LEN	   2048
+#define RX_HEADROOM	   NET_SKB_PAD
+#define TX_DESC_NEEDED	   (MAX_SKB_FRAGS + 1)
+#define SGDMA_TIMEOUT	   50
+#define XDMA_CREDIT_MAX	   1023
+#define XDMA_WB_COUNT_MASK 0xFFFFFF
 
 struct xdma_rx_buffer_info {
 	// The page_pool page posted to the device.
@@ -98,6 +97,10 @@ struct xdma_tx_ring {
 	// HW descriptor ring for H2C
 	struct xdma_desc *hw_desc_ring_virt;
 	dma_addr_t hw_desc_ring_phys;
+
+	// Where the hw writes the completed descriptor count
+	struct xdma_poll_wb *hw_wb_compl_virt;
+	dma_addr_t hw_wb_compl_phys;
 
 	// Pointer to our parallel software descriptor ring.
 	struct xdma_tx_buffer_info *sw_ring;

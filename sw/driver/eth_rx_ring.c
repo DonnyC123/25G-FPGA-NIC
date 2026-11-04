@@ -28,7 +28,7 @@ static int wr_sgdma_desc_regs_rx(struct xdma_rx_ring *rx_ring) {
 		       (unsigned long)&sgdma->first_desc_adjacent - (unsigned long)sgdma);
 
 	// Clamp initial grant: desc_max can exceed the 10-bit credit field.
-	w = cpu_to_le32(min_t(u32, rx_ring->count, XDMA_C2H_CREDIT_MAX));
+	w = cpu_to_le32(min_t(u32, rx_ring->count, XDMA_CREDIT_MAX));
 	pr_info("rx_ring->count=%u, granting initial credits=%u\n", rx_ring->count, le32_to_cpu(w));
 	dbg_tfr("iowrite32(0x%08x to 0x%p) (credits)\n", w, (void *)&sgdma->credits);
 	write_register(w, &sgdma->credits, (unsigned long)&sgdma->credits - (unsigned long)sgdma);
@@ -293,7 +293,6 @@ void free_rx_pages(struct xdma_rx_ring *rx_ring) {
 }
 
 static irqreturn_t rx_irq_handler(int irq, void *dev_id) {
-	u32 w;
 	struct net_device_priv *xndev;
 	struct xdma_rx_ring *rx_ring;
 	struct xdma_engine *engine;
@@ -315,8 +314,8 @@ static irqreturn_t rx_irq_handler(int irq, void *dev_id) {
 
 	// W1C status.descriptor_completed to re-arm the MSI-X edge.
 	write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->status, (unsigned long)&regs->status - (unsigned long)regs);
-	w = read_register(&regs->status);
-	dbg_tfr("status after W1C clear = 0x%08x\n", w);
+	// Flush the clear so a completion after NAPI's ring check is not wiped.
+	read_register(&regs->status);
 
 	napi_schedule(&rx_ring->napi);
 

@@ -4,8 +4,6 @@
 
 static int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring) {
 	struct xdma_engine *engine;
-	struct xdma_dev *xdev;
-	struct sgdma_common_regs *common_regs;
 	struct engine_sgdma_regs *sgdma;
 	u32 w;
 
@@ -25,16 +23,6 @@ static int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring) {
 		tx_ring->hw_desc_ring_virt[i].control = 0;
 	}
 	tx_ring->last_hw_completed = 0;
-
-	// libxdma only enables C2H credit mode; do it ourselves for H2C.
-	xdev = engine->xdev;
-	common_regs = (struct sgdma_common_regs *)(xdev->bar[xdev->config_bar_idx] + SGDMA_COMMON_OFFSET);
-	w = (1U << engine->channel);
-
-	dbg_tfr("iowrite32(0x%08x to 0x%p) (h2c credit_mode_enable_w1s)\n", w,
-		(void *)&common_regs->credit_mode_enable_w1s);
-
-	write_register(w, &common_regs->credit_mode_enable_w1s, 0);
 
 	sgdma = engine->sgdma_regs;
 
@@ -137,6 +125,7 @@ int tx_ring_init(struct net_device_priv *xndev) {
 	struct xdma_dev *xdev;
 	struct xdma_engine *h2c_engine;
 	size_t hw_desc_ring_size;
+	size_t hw_wb_compl_size;
 	size_t sw_ring_size;
 
 	tx_ring = kzalloc(sizeof(*tx_ring), GFP_KERNEL);
@@ -162,8 +151,6 @@ int tx_ring_init(struct net_device_priv *xndev) {
 	spin_lock_init(&tx_ring->lock);
 
 	hw_desc_ring_size = sizeof(*tx_ring->hw_desc_ring_virt) * tx_ring->count;
-	sw_ring_size = sizeof(*tx_ring->sw_ring) * tx_ring->count;
-
 	tx_ring->hw_desc_ring_virt =
 		dma_alloc_coherent(tx_ring->dev, hw_desc_ring_size, &tx_ring->hw_desc_ring_phys, GFP_KERNEL);
 	if (!tx_ring->hw_desc_ring_virt) {
@@ -171,6 +158,15 @@ int tx_ring_init(struct net_device_priv *xndev) {
 		goto err_hw_desc_ring;
 	}
 
+	hw_wb_compl_size = sizeof(*tx_ring->hw_wb_compl_virt);
+	tx_ring->hw_wb_compl_virt =
+		dma_alloc_coherent(tx_ring->dev, hw_wb_compl_size, &tx_ring->hw_wb_compl_phys, GFP_KERNEL);
+	if (!tx_ring->hw_wb_compl_virt) {
+		pr_err("Failed to allocate WB addr for tx (size=%zu)\n", hw_wb_compl_size);
+		goto err_wb_compl;
+	}
+
+	sw_ring_size = sizeof(*tx_ring->sw_ring) * tx_ring->count;
 	tx_ring->sw_ring = kzalloc(sw_ring_size, GFP_KERNEL);
 	if (!tx_ring->sw_ring) {
 		pr_err("Failed to allocate TX SW ring (size=%zu)\n", sw_ring_size);
@@ -181,6 +177,8 @@ int tx_ring_init(struct net_device_priv *xndev) {
 	return 0;
 
 err_sw_ring:
+	dma_free_coherent(tx_ring->dev, hw_wb_compl_size, tx_ring->hw_wb_compl_virt, tx_ring->hw_wb_compl_phys);
+err_wb_compl:
 	dma_free_coherent(tx_ring->dev, hw_desc_ring_size, tx_ring->hw_desc_ring_virt, tx_ring->hw_desc_ring_phys);
 err_hw_desc_ring:
 	kfree(tx_ring);
@@ -192,6 +190,7 @@ void tx_ring_free(struct net_device_priv *xndev) {
 	struct xdma_tx_ring *tx_ring;
 	struct xdma_engine *h2c_engine;
 	size_t hw_desc_ring_size;
+	size_t hw_wb_compl_size;
 
 	tx_ring = xndev->tx_ring;
 	if (!tx_ring)
@@ -199,13 +198,15 @@ void tx_ring_free(struct net_device_priv *xndev) {
 
 	h2c_engine = tx_ring->h2c_engine;
 
-	hw_desc_ring_size = sizeof(*tx_ring->hw_desc_ring_virt) * h2c_engine->desc_max;
-
 	netif_napi_del(&tx_ring->napi);
 
 	kfree(tx_ring->sw_ring);
 
+	hw_desc_ring_size = sizeof(*tx_ring->hw_desc_ring_virt) * h2c_engine->desc_max;
 	dma_free_coherent(tx_ring->dev, hw_desc_ring_size, tx_ring->hw_desc_ring_virt, tx_ring->hw_desc_ring_phys);
+
+	hw_wb_compl_size = sizeof(*tx_ring->hw_wb_compl_virt);
+	dma_free_coherent(tx_ring->dev, hw_wb_compl_size, tx_ring->hw_wb_compl_virt, tx_ring->hw_wb_compl_phys);
 
 	kfree(tx_ring);
 	xndev->tx_ring = NULL;
@@ -233,10 +234,10 @@ static irqreturn_t tx_irq_handler(int irq, void *dev_id) {
 
 	// W1C status.descriptor_completed to re-arm the MSI-X edge.
 	write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->status, (unsigned long)&regs->status - (unsigned long)regs);
+	// Flush the clear so a completion after NAPI's ring check is not wiped.
 	read_register(&regs->status);
-	dbg_tfr("status after W1C clear = 0x%08x\n", w);
-	napi_schedule(&tx_ring->napi);
 
+	napi_schedule(&tx_ring->napi);
 	return IRQ_HANDLED;
 }
 

@@ -2591,6 +2591,13 @@ static void engine_free_resource(struct xdma_engine *engine)
 	}
 }
 
+static u32 credit_mode_bit(struct xdma_engine *engine)
+{
+	u32 bit = 0x1 << engine->channel;
+
+	return engine->dir == DMA_FROM_DEVICE ? bit << 16 : bit;
+}
+
 static int engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
 {
 	if (!xdev) {
@@ -2610,9 +2617,8 @@ static int engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
 		       (unsigned long)(&engine->regs->interrupt_enable_mask) -
 			       (unsigned long)(&engine->regs));
 
-	if (enable_st_c2h_credit && engine->streaming &&
-	    engine->dir == DMA_FROM_DEVICE) {
-		u32 reg_value = (0x1 << engine->channel) << 16;
+	if (enable_st_c2h_credit && engine->streaming) {
+		u32 reg_value = credit_mode_bit(engine);
 		struct sgdma_common_regs *reg =
 			(struct sgdma_common_regs
 				 *)(xdev->bar[xdev->config_bar_idx] +
@@ -2771,12 +2777,11 @@ static int engine_init_regs(struct xdma_engine *engine)
 
 	engine->interrupt_enable_mask_value = reg_value;
 
-	/* only enable credit mode for AXI-ST C2H */
-	if (enable_st_c2h_credit && engine->streaming &&
-	    engine->dir == DMA_FROM_DEVICE) {
+	/* enable credit mode for AXI-ST H2C and C2H */
+	if (enable_st_c2h_credit && engine->streaming) {
     printk(KERN_INFO "About to enable credit mode" );
 		struct xdma_dev *xdev = engine->xdev;
-		u32 reg_value = (0x1 << engine->channel) << 16;
+		u32 reg_value = credit_mode_bit(engine);
 		struct sgdma_common_regs *reg =
 			(struct sgdma_common_regs
 				 *)(xdev->bar[xdev->config_bar_idx] +
@@ -2872,8 +2877,7 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 		(dir == DMA_TO_DEVICE) ? "H2C" : "C2H", channel,
 		engine->streaming ? "ST" : "MM");
 
-	if (enable_st_c2h_credit && engine->streaming &&
-	    engine->dir == DMA_FROM_DEVICE)
+	if (enable_st_c2h_credit && engine->streaming)
 	    	engine->desc_max = XDMA_ENGINE_CREDIT_XFER_MAX_DESC;
 	else
 	    	engine->desc_max = XDMA_ENGINE_XFER_MAX_DESC;
