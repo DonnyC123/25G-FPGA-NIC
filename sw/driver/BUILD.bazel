@@ -1,3 +1,9 @@
+UNLOAD = """
+if grep -q '^eth_xdma ' /proc/modules; then
+  sudo rmmod eth_xdma
+fi
+"""
+
 config_setting(
     name = "debug",
     define_values = {"debug": "1"},
@@ -21,5 +27,35 @@ make -C "/lib/modules/$$(uname -r)/build" M="$$build_dir" modules """ + select({
 cp "$$build_dir/eth_xdma.ko" $@
 """,
     local = True,
+    tags = ["manual"],
+)
+
+genrule(
+    name = "install",
+    srcs = [":eth_xdma"],
+    outs = ["install.sh"],
+    cmd = """
+cat > $@ <<'EOF'
+#!/bin/bash
+set -e
+""" + UNLOAD + """
+sudo insmod "$$BUILD_WORKSPACE_DIRECTORY/bazel-bin/$(rootpath :eth_xdma)"
+EOF
+""",
+    executable = True,
+    tags = ["manual"],
+)
+
+genrule(
+    name = "uninstall",
+    outs = ["uninstall.sh"],
+    cmd = """
+cat > $@ <<'EOF'
+#!/bin/bash
+set -e
+""" + UNLOAD + """
+EOF
+""",
+    executable = True,
     tags = ["manual"],
 )
