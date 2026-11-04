@@ -130,22 +130,24 @@ err_unmap:
 	return -ENOMEM;
 }
 
+static u32 tx_new_completions(const struct xdma_tx_ring *tx_ring) {
+	u32 count = le32_to_cpu(READ_ONCE(tx_ring->hw_wb_compl_virt->completed_desc_count));
+
+	return (count - tx_ring->last_hw_completed) & XDMA_WB_COUNT_MASK;
+}
+
 static int tx_clean_skb(struct xdma_tx_ring *tx_ring, int budget) {
-	struct xdma_engine *engine;
-	struct engine_regs *regs;
 	int packets_processed;
 	u32 newly_completed;
 	u32 descs_processed;
 	u32 *ci;
 
 	ci = &tx_ring->driver_ci;
-	engine = tx_ring->h2c_engine;
-	regs = engine->regs;
 
 	packets_processed = 0;
 	descs_processed = 0;
 	spin_lock_bh(&tx_ring->lock);
-	newly_completed = read_register(&regs->completed_desc_count) - tx_ring->last_hw_completed;
+	newly_completed = tx_new_completions(tx_ring);
 	while (descs_processed < newly_completed && packets_processed < budget) {
 		struct xdma_tx_buffer_info *bi = &tx_ring->sw_ring[*ci];
 		struct sk_buff *skb = bi->skb;
@@ -160,7 +162,7 @@ static int tx_clean_skb(struct xdma_tx_ring *tx_ring, int budget) {
 		*ci = (*ci + 1) % tx_ring->count;
 		descs_processed++;
 	}
-	tx_ring->last_hw_completed += descs_processed;
+	tx_ring->last_hw_completed = (tx_ring->last_hw_completed + descs_processed) & XDMA_WB_COUNT_MASK;
 	spin_unlock_bh(&tx_ring->lock);
 	return packets_processed;
 }
@@ -246,6 +248,10 @@ int tx_napi_poll(struct napi_struct *napi, int weight) {
 
 		write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->interrupt_enable_mask_w1s,
 			       (unsigned long)&regs->interrupt_enable_mask_w1s - (unsigned long)regs);
+
+		// The writeback may land after the interrupt that announced it
+		if (tx_new_completions(tx_ring))
+			napi_schedule(napi);
 	}
 
 	return packets_processed;

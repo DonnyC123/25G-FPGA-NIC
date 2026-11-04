@@ -24,6 +24,17 @@ static int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring) {
 	}
 	tx_ring->last_hw_completed = 0;
 
+	// The hw count resets to 0 when Run rises, so the writeback must match
+	tx_ring->hw_wb_compl_virt->completed_desc_count = 0;
+
+	w = cpu_to_le32(PCI_DMA_L(tx_ring->hw_wb_compl_phys));
+	write_register(w, &engine->regs->poll_mode_wb_lo,
+		       (unsigned long)&engine->regs->poll_mode_wb_lo - (unsigned long)engine->regs);
+
+	w = cpu_to_le32(PCI_DMA_H(tx_ring->hw_wb_compl_phys));
+	write_register(w, &engine->regs->poll_mode_wb_hi,
+		       (unsigned long)&engine->regs->poll_mode_wb_hi - (unsigned long)engine->regs);
+
 	sgdma = engine->sgdma_regs;
 
 	// Point engine at the start of the ring (engine is not started yet)
@@ -76,7 +87,7 @@ static int start_tx_sgdma(struct xdma_tx_ring *tx_ring) {
 	write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->interrupt_enable_mask_w1s,
 		       (unsigned long)&regs->interrupt_enable_mask_w1s - (unsigned long)regs);
 
-	write_register(XDMA_CTRL_RUN_AND_IE, &regs->control_w1s,
+	write_register(XDMA_CTRL_RUN_AND_IE | XDMA_CTRL_POLL_MODE_WB, &regs->control_w1s,
 		       (unsigned long)&regs->control_w1s - (unsigned long)regs);
 
 	// Flush posted writes
