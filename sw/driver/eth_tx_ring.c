@@ -16,21 +16,27 @@ static int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring)
 		return -EINVAL;
 	}
 
-	/* Wire descriptors as a circular ring (control=0; credit mode gates fetch) */
+	/* Wire descriptors as a circular ring (control=0; credit mode gates
+	 * fetch) */
 	for (u32 i = 0; i < tx_ring->count; i++) {
 		u32 next_idx = (i + 1) % tx_ring->count;
-		dma_addr_t next_phys = tx_ring->hw_desc_ring_phys +
-				       (dma_addr_t)next_idx * sizeof(*tx_ring->hw_desc_ring_virt);
-		tx_ring->hw_desc_ring_virt[i].next_lo = cpu_to_le32(PCI_DMA_L(next_phys));
-		tx_ring->hw_desc_ring_virt[i].next_hi = cpu_to_le32(PCI_DMA_H(next_phys));
+		dma_addr_t next_phys =
+			tx_ring->hw_desc_ring_phys +
+			(dma_addr_t)next_idx *
+				sizeof(*tx_ring->hw_desc_ring_virt);
+		tx_ring->hw_desc_ring_virt[i].next_lo =
+			cpu_to_le32(PCI_DMA_L(next_phys));
+		tx_ring->hw_desc_ring_virt[i].next_hi =
+			cpu_to_le32(PCI_DMA_H(next_phys));
 		tx_ring->hw_desc_ring_virt[i].control = 0;
 	}
 	tx_ring->last_hw_completed = 0;
 
 	/* libxdma only enables C2H credit mode; do it ourselves for H2C. */
 	xdev = engine->xdev;
-	common_regs = (struct sgdma_common_regs *)(xdev->bar[xdev->config_bar_idx] +
-						   SGDMA_COMMON_OFFSET);
+	common_regs =
+		(struct sgdma_common_regs *)(xdev->bar[xdev->config_bar_idx] +
+					     SGDMA_COMMON_OFFSET);
 	w = (1U << engine->channel);
 	dbg_tfr("iowrite32(0x%08x to 0x%p) (h2c credit_mode_enable_w1s)\n", w,
 		(void *)&common_regs->credit_mode_enable_w1s);
@@ -40,19 +46,26 @@ static int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring)
 
 	/* Point engine at the start of the ring (engine is not started yet) */
 	w = cpu_to_le32(PCI_DMA_L(tx_ring->hw_desc_ring_phys));
-	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_lo)\n", w, (void *)&sgdma->first_desc_lo);
+	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_lo)\n", w,
+		(void *)&sgdma->first_desc_lo);
 	write_register(w, &sgdma->first_desc_lo,
-		       (unsigned long)&sgdma->first_desc_lo - (unsigned long)sgdma);
+		       (unsigned long)&sgdma->first_desc_lo -
+			       (unsigned long)sgdma);
 
 	w = cpu_to_le32(PCI_DMA_H(tx_ring->hw_desc_ring_phys));
-	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_hi)\n", w, (void *)&sgdma->first_desc_hi);
+	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_hi)\n", w,
+		(void *)&sgdma->first_desc_hi);
 	write_register(w, &sgdma->first_desc_hi,
-		       (unsigned long)&sgdma->first_desc_hi - (unsigned long)sgdma);
+		       (unsigned long)&sgdma->first_desc_hi -
+			       (unsigned long)sgdma);
 
-	/* No pre-fetch: engine fetches one descriptor at a time via next pointers */
-	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_adjacent)\n", 0, (void *)&sgdma->first_desc_adjacent);
+	/* No pre-fetch: engine fetches one descriptor at a time via next
+	 * pointers */
+	dbg_tfr("iowrite32(0x%08x to 0x%p) (first_desc_adjacent)\n", 0,
+		(void *)&sgdma->first_desc_adjacent);
 	write_register(0, &sgdma->first_desc_adjacent,
-		       (unsigned long)&sgdma->first_desc_adjacent - (unsigned long)sgdma);
+		       (unsigned long)&sgdma->first_desc_adjacent -
+			       (unsigned long)sgdma);
 
 	w = read_register(&engine->regs->status);
 	dbg_tfr("ioread32(0x%p) = 0x%08x (dummy read flushes writes).\n",
@@ -60,13 +73,13 @@ static int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring)
 	return 0;
 }
 
-void tx_xdma_desc_set(struct xdma_desc *hw_desc_ring_virt,
-		      dma_addr_t dma, int len, bool eop)
+void tx_xdma_desc_set(struct xdma_desc *hw_desc_ring_virt, dma_addr_t dma,
+		      int len, bool eop)
 {
-	/* Magic required by hardware; EOP asserts tlast; COMPLETED requests IRQ */
-	hw_desc_ring_virt->control =
-		cpu_to_le32(DESC_MAGIC | (eop ? XDMA_DESC_EOP : 0) |
-			    XDMA_DESC_COMPLETED);
+	/* Magic required by hardware; EOP asserts tlast; COMPLETED requests IRQ
+	 */
+	hw_desc_ring_virt->control = cpu_to_le32(
+		DESC_MAGIC | (eop ? XDMA_DESC_EOP : 0) | XDMA_DESC_COMPLETED);
 	hw_desc_ring_virt->bytes = cpu_to_le32(len);
 
 	hw_desc_ring_virt->src_addr_lo = cpu_to_le32(PCI_DMA_L(dma));
@@ -126,7 +139,8 @@ int stop_tx_sgdma(struct xdma_tx_ring *tx_ring)
 
 	write_register(XDMA_CTRL_IE_DESC_COMPLETED,
 		       &regs->interrupt_enable_mask_w1c,
-		       (unsigned long)&regs->interrupt_enable_mask_w1c - (unsigned long)regs);
+		       (unsigned long)&regs->interrupt_enable_mask_w1c -
+			       (unsigned long)regs);
 
 	write_register(XDMA_CTRL_RUN_STOP, &regs->control_w1c,
 		       (unsigned long)&regs->control_w1c - (unsigned long)regs);
@@ -175,11 +189,13 @@ int tx_ring_init(struct net_device_priv *xndev)
 
 	spin_lock_init(&tx_ring->lock);
 
-	hw_desc_ring_size = sizeof(*tx_ring->hw_desc_ring_virt) * tx_ring->count;
+	hw_desc_ring_size =
+		sizeof(*tx_ring->hw_desc_ring_virt) * tx_ring->count;
 	sw_ring_size = sizeof(*tx_ring->sw_ring) * tx_ring->count;
 
-	tx_ring->hw_desc_ring_virt = dma_alloc_coherent(
-		tx_ring->dev, hw_desc_ring_size, &tx_ring->hw_desc_ring_phys, GFP_KERNEL);
+	tx_ring->hw_desc_ring_virt =
+		dma_alloc_coherent(tx_ring->dev, hw_desc_ring_size,
+				   &tx_ring->hw_desc_ring_phys, GFP_KERNEL);
 	if (!tx_ring->hw_desc_ring_virt) {
 		pr_err("Failed to allocate TX HW descriptor ring (size=%zu)\n",
 		       hw_desc_ring_size);
@@ -188,7 +204,8 @@ int tx_ring_init(struct net_device_priv *xndev)
 
 	tx_ring->sw_ring = kzalloc(sw_ring_size, GFP_KERNEL);
 	if (!tx_ring->sw_ring) {
-		pr_err("Failed to allocate TX SW ring (size=%zu)\n", sw_ring_size);
+		pr_err("Failed to allocate TX SW ring (size=%zu)\n",
+		       sw_ring_size);
 		goto err_sw_ring;
 	}
 
@@ -196,7 +213,8 @@ int tx_ring_init(struct net_device_priv *xndev)
 	return 0;
 
 err_sw_ring:
-	dma_free_coherent(tx_ring->dev, hw_desc_ring_size, tx_ring->hw_desc_ring_virt,
+	dma_free_coherent(tx_ring->dev, hw_desc_ring_size,
+			  tx_ring->hw_desc_ring_virt,
 			  tx_ring->hw_desc_ring_phys);
 err_hw_desc_ring:
 	kfree(tx_ring);
@@ -223,7 +241,8 @@ void tx_ring_free(struct net_device_priv *xndev)
 
 	kfree(tx_ring->sw_ring);
 
-	dma_free_coherent(tx_ring->dev, hw_desc_ring_size, tx_ring->hw_desc_ring_virt,
+	dma_free_coherent(tx_ring->dev, hw_desc_ring_size,
+			  tx_ring->hw_desc_ring_virt,
 			  tx_ring->hw_desc_ring_phys);
 
 	kfree(tx_ring);
@@ -251,7 +270,8 @@ static irqreturn_t tx_irq_handler(int irq, void *dev_id)
 
 	write_register(XDMA_CTRL_IE_DESC_COMPLETED,
 		       &regs->interrupt_enable_mask_w1c,
-		       (unsigned long)&regs->interrupt_enable_mask_w1c - (unsigned long)regs);
+		       (unsigned long)&regs->interrupt_enable_mask_w1c -
+			       (unsigned long)regs);
 
 	/* W1C status.descriptor_completed to re-arm the MSI-X edge. */
 	write_register(XDMA_CTRL_IE_DESC_COMPLETED, &regs->status,

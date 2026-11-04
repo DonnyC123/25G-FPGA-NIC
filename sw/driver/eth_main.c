@@ -8,8 +8,8 @@
 #include "eth_mod.h"
 #include "version.h"
 
-#define DRV_MODULE_NAME		"eth_mod"
-#define DRV_MODULE_DESC		"XDMA Ethernet Driver Module"
+#define DRV_MODULE_NAME "eth_mod"
+#define DRV_MODULE_DESC "XDMA Ethernet Driver Module"
 
 static const char version[] =
 	DRV_MODULE_DESC " " DRV_MODULE_NAME " v" DRV_MODULE_VERSION "\n";
@@ -21,6 +21,7 @@ MODULE_LICENSE("GPL");
 
 static int xpdev_cnt;
 
+/* clang-format off */
 static const struct pci_device_id pci_ids[] = {
 { PCI_DEVICE(0x10ee, 0x9048), },
 { PCI_DEVICE(0x10ee, 0x9044), },
@@ -90,6 +91,7 @@ static const struct pci_device_id pci_ids[] = {
 
 { 0 }
 };
+/* clang-format on */
 
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
@@ -115,7 +117,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	void *hndl = NULL;
 	int rv;
 	const unsigned char my_mac_addr[ETH_ALEN] = {0x00, 0x0A, 0x35,
-						      0x01, 0x02, 0x03};
+						     0x01, 0x02, 0x03};
 
 	pr_info("My driver: Found a matching device!\n");
 	net_dev = alloc_etherdev(sizeof(*xndev));
@@ -127,7 +129,8 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	xndev->net_dev = net_dev;
 
 	hndl = xdma_netdev_open(DRV_MODULE_NAME, pdev, &xndev->user_max,
-				&xndev->h2c_channel_max, &xndev->c2h_channel_max);
+				&xndev->h2c_channel_max,
+				&xndev->c2h_channel_max);
 	if (!hndl) {
 		rv = -EINVAL;
 		goto err_out;
@@ -178,7 +181,8 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, usr %d, ch %d,%d.\n",
 		dev_name(&pdev->dev), xdev->idx, pdev, xndev, xdev,
-		xndev->user_max, xndev->h2c_channel_max, xndev->c2h_channel_max);
+		xndev->user_max, xndev->h2c_channel_max,
+		xndev->c2h_channel_max);
 
 	xndev->xdev = hndl;
 
@@ -256,10 +260,10 @@ static void remove_one(struct pci_dev *pdev)
 }
 
 static struct pci_driver pci_driver = {
-	.name     = DRV_MODULE_NAME,
+	.name = DRV_MODULE_NAME,
 	.id_table = pci_ids,
-	.probe    = probe_one,
-	.remove   = remove_one,
+	.probe = probe_one,
+	.remove = remove_one,
 };
 
 static int eth_xdma_mod_init(void)
