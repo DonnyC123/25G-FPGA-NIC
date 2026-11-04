@@ -33,11 +33,14 @@ static int rx_clean_skb(struct xdma_rx_ring *rx_ring, int budget) {
 
 		*ci = (*ci + 1) % rx_ring->count;
 
-		if (unlikely(!len || len > rx_ring->buffer_len)) {
+		if (unlikely(len < ETH_HLEN + ETH_FCS_LEN || len > rx_ring->buffer_len)) {
 			net_dev->stats.rx_errors++;
 			page_pool_recycle_direct(rx_ring->page_pool, page);
 			continue;
 		}
+
+		// The hw checks the FCS and keeps it on the frame
+		len -= ETH_FCS_LEN;
 
 		dma_sync_single_for_cpu(rx_ring->dev, page_pool_get_dma_addr(page) + RX_HEADROOM, len, DMA_FROM_DEVICE);
 

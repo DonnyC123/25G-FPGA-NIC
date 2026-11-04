@@ -178,9 +178,6 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id) {
 
 	xndev->xdev = hndl;
 
-	net_dev->hw_features |= NETIF_F_RXFCS;
-	net_dev->hw_features |= NETIF_F_RXALL;
-
 	net_dev->netdev_ops = &netdev_ops;
 	net_dev->watchdog_timeo = WATCHDOG_PERIOD;
 
