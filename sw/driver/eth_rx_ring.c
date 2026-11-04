@@ -2,7 +2,7 @@
 
 #include "eth_mod.h"
 
-int wr_sgdma_desc_regs_rx(struct xdma_rx_ring *rx_ring)
+static int wr_sgdma_desc_regs_rx(struct xdma_rx_ring *rx_ring)
 {
 	struct xdma_engine *engine;
 	struct engine_sgdma_regs *sgdma;
@@ -69,7 +69,7 @@ void rx_xdma_desc_set(struct xdma_rx_ring *rx_ring, u32 idx,
 	desc->next_hi = cpu_to_le32(PCI_DMA_H(next_phys));
 }
 
-int start_rx_sgdma(struct xdma_rx_ring *rx_ring)
+static int start_rx_sgdma(struct xdma_rx_ring *rx_ring)
 {
 	struct xdma_engine *engine;
 	struct engine_regs *regs;
@@ -265,7 +265,7 @@ static int rx_page_pool_create(struct xdma_rx_ring *rx_ring)
 	return 0;
 }
 
-int alloc_rx_pages(struct xdma_rx_ring *rx_ring)
+static int alloc_rx_pages(struct xdma_rx_ring *rx_ring)
 {
 	size_t buff_idx;
 	int rv;
@@ -329,8 +329,6 @@ static irqreturn_t rx_irq_handler(int irq, void *dev_id)
 	struct xdma_rx_ring *rx_ring;
 	struct xdma_engine *engine;
 	struct engine_regs *regs;
-
-	pr_info_ratelimited("rx_irq_handler fired irq=%d\n", irq);
 
 	xndev = (struct net_device_priv *)dev_id;
 	rx_ring = xndev->rx_ring;

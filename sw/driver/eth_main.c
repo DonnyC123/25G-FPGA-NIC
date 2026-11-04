@@ -1,6 +1,5 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ":%s: " fmt, __func__
 
-#include <linux/aer.h>
 #include <linux/if_ether.h>
 #include <linux/etherdevice.h>
 #include <linux/module.h>
@@ -119,7 +118,6 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 						      0x01, 0x02, 0x03};
 
 	pr_info("My driver: Found a matching device!\n");
-	rv = 0;
 	net_dev = alloc_etherdev(sizeof(*xndev));
 	if (!net_dev)
 		return -ENOMEM;

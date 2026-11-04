@@ -2,32 +2,14 @@
 #ifndef __ETH_MODULE_H__
 #define __ETH_MODULE_H__
 
-#include <linux/aio.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
-#include <linux/fb.h>
-#include <linux/fs.h>
-#include <linux/init.h>
-#include <linux/interrupt.h>
 #include <linux/io.h>
-#include <linux/jiffies.h>
-#include <linux/kernel.h>
-#include <linux/mm.h>
-#include <linux/mm_types.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/pci.h>
-#include <linux/poll.h>
-#include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
-#include <linux/spinlock_types.h>
-#include <linux/splice.h>
-#include <linux/types.h>
-#include <linux/uio.h>
-#include <linux/version.h>
-#include <linux/vmalloc.h>
-#include <linux/workqueue.h>
 
 #include <net/page_pool/helpers.h>
 
@@ -52,18 +34,12 @@
      XDMA_CTRL_IE_READ_ERROR          | \
      XDMA_CTRL_IE_DESC_ERROR)
 
-#define MAGIC_ENGINE 0xEEEEEEEEUL
-#define MAGIC_DEVICE 0xDDDDDDDDUL
-#define MAGIC_CHAR 0xCCCCCCCCUL
-#define MAGIC_BITSTREAM 0xBBBBBBBBUL
-
 #define WATCHDOG_PERIOD (5 * HZ)
 #define RX_BUFFER_LEN 2048
 #define RX_HEADROOM NET_SKB_PAD
 #define TX_DESC_NEEDED (MAX_SKB_FRAGS + 1)
 #define SGDMA_TIMEOUT 50
 #define XDMA_C2H_CREDIT_MAX 1023
-
 
 struct xdma_rx_buffer_info {
   /** The page_pool page posted to the device. */
@@ -171,10 +147,7 @@ int tx_napi_poll(struct napi_struct *napi, int weight);
 /* eth_rx_ring.c */
 int rx_ring_init(struct net_device_priv *xndev);
 void rx_ring_free(struct net_device_priv *xndev);
-int wr_sgdma_desc_regs_rx(struct xdma_rx_ring *rx_ring);
-int start_rx_sgdma(struct xdma_rx_ring *rx_ring);
 int stop_rx_sgdma(struct xdma_rx_ring *rx_ring);
-int alloc_rx_pages(struct xdma_rx_ring *rx_ring);
 void free_rx_pages(struct xdma_rx_ring *rx_ring);
 void rx_xdma_desc_set(struct xdma_rx_ring *rx_ring, u32 idx,
                       dma_addr_t dma, int len);
@@ -183,8 +156,6 @@ int configure_rx(struct net_device_priv *xndev);
 /* eth_tx_ring.c */
 int tx_ring_init(struct net_device_priv *xndev);
 void tx_ring_free(struct net_device_priv *xndev);
-int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring);
-int start_tx_sgdma(struct xdma_tx_ring *tx_ring);
 int stop_tx_sgdma(struct xdma_tx_ring *tx_ring);
 void tx_xdma_desc_set(struct xdma_desc *hw_desc_ring_virt,
                       dma_addr_t dma, int len, bool eop);

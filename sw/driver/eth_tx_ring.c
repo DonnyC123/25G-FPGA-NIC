@@ -2,7 +2,7 @@
 
 #include "eth_mod.h"
 
-int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring)
+static int wr_sgdma_desc_regs_tx(struct xdma_tx_ring *tx_ring)
 {
 	struct xdma_engine *engine;
 	struct xdma_dev *xdev;
@@ -79,7 +79,7 @@ void tx_xdma_desc_set(struct xdma_desc *hw_desc_ring_virt,
 	/* next_lo/next_hi pre-wired as a ring during init; do not touch here */
 }
 
-int start_tx_sgdma(struct xdma_tx_ring *tx_ring)
+static int start_tx_sgdma(struct xdma_tx_ring *tx_ring)
 {
 	struct xdma_engine *engine;
 	struct engine_regs *regs;
@@ -237,8 +237,6 @@ static irqreturn_t tx_irq_handler(int irq, void *dev_id)
 	struct xdma_tx_ring *tx_ring;
 	struct xdma_engine *engine;
 	struct engine_regs *regs;
-
-	pr_info_ratelimited("tx_irq_handler fired irq=%d\n", irq);
 
 	xndev = (struct net_device_priv *)(dev_id);
 	tx_ring = xndev->tx_ring;

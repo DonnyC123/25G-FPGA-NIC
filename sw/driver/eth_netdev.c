@@ -5,7 +5,7 @@
 
 #include "eth_mod.h"
 
-int rx_clean_skb(struct xdma_rx_ring *rx_ring, int budget)
+static int rx_clean_skb(struct xdma_rx_ring *rx_ring, int budget)
 {
 	struct net_device *net_dev;
 	int packets_processed;
@@ -141,7 +141,7 @@ err_unmap:
 	return -ENOMEM;
 }
 
-int tx_clean_skb(struct xdma_tx_ring *tx_ring, int budget)
+static int tx_clean_skb(struct xdma_tx_ring *tx_ring, int budget)
 {
 	struct xdma_engine *engine;
 	struct engine_regs *regs;
@@ -178,7 +178,7 @@ int tx_clean_skb(struct xdma_tx_ring *tx_ring, int budget)
 	return packets_processed;
 }
 
-int rx_refill_skb(struct xdma_rx_ring *rx_ring)
+static int rx_refill_skb(struct xdma_rx_ring *rx_ring)
 {
 	struct engine_sgdma_regs *sgdma;
 	int packets_processed = 0;
@@ -273,40 +273,14 @@ int tx_napi_poll(struct napi_struct *napi, int weight)
 	return packets_processed;
 }
 
-netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_dev)
+static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_dev)
 {
-	struct net_device_priv *xndev;
-	struct xdma_engine *engine;
-	struct xdma_tx_ring *tx_ring;
-	struct engine_sgdma_regs *sgdma;
-	struct engine_regs *regs;
+	struct net_device_priv *xndev = netdev_priv(net_dev);
+	struct xdma_tx_ring *tx_ring = xndev->tx_ring;
+	struct engine_sgdma_regs *sgdma = tx_ring->h2c_engine->sgdma_regs;
 	struct net_device_stats *stats = &net_dev->stats;
 	int nr_desc;
 	int len;
-
-	pr_info_ratelimited("eth_xmit_frame: skb len=%u\n", skb ? skb->len : 0);
-
-	xndev = netdev_priv(net_dev);
-
-	if (unlikely(!xndev)) {
-		dev_kfree_skb_any(skb);
-		return NETDEV_TX_OK;
-	}
-
-	tx_ring = xndev->tx_ring;
-	if (unlikely(!tx_ring)) {
-		dev_kfree_skb_any(skb);
-		return NETDEV_TX_OK;
-	}
-
-	engine = tx_ring->h2c_engine;
-	if (unlikely(!engine)) {
-		dev_kfree_skb_any(skb);
-		return NETDEV_TX_OK;
-	}
-
-	sgdma = engine->sgdma_regs;
-	regs = engine->regs;
 
 	if (skb->len < ETH_ZLEN) {
 		if (skb_padto(skb, ETH_ZLEN)) {
@@ -342,20 +316,6 @@ netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_dev)
 
 	write_register(cpu_to_le32(nr_desc), &sgdma->credits,
 		       (unsigned long)&sgdma->credits - (unsigned long)sgdma);
-
-	{
-		u32 st = read_register(&regs->status);
-		u32 ctrl = read_register(&regs->control);
-		u32 cc = read_register(&regs->completed_desc_count);
-		struct xdma_engine *rxe = xndev->rx_ring ? xndev->rx_ring->c2h_engine : NULL;
-		struct engine_regs *rregs = rxe ? rxe->regs : NULL;
-		u32 rst = rregs ? read_register(&rregs->status) : 0;
-		u32 rctrl = rregs ? read_register(&rregs->control) : 0;
-		u32 rcc = rregs ? read_register(&rregs->completed_desc_count) : 0;
-		pr_info_ratelimited("h2c: st=0x%08x ctl=0x%08x cmpl=%u pi=%u ci=%u | c2h: st=0x%08x ctl=0x%08x cmpl=%u\n",
-				    st, ctrl, cc, tx_ring->driver_pi, tx_ring->driver_ci,
-				    rst, rctrl, rcc);
-	}
 
 	spin_unlock_bh(&tx_ring->lock);
 
