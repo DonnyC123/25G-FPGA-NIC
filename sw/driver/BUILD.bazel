@@ -1,15 +1,23 @@
+config_setting(
+    name = "debug",
+    define_values = {"debug": "1"},
+)
+
 genrule(
     name = "eth_xdma",
     srcs = glob([
         "*.c",
         "*.h",
-    ]) + ["Makefile"],
+    ]) + ["Kbuild"],
     outs = ["eth_xdma.ko"],
     cmd = """
 build_dir="$$(mktemp -d)"
 trap 'rm -rf "$$build_dir"' EXIT
 cp $(SRCS) "$$build_dir"
-make -C "$$build_dir" all
+make -C "/lib/modules/$$(uname -r)/build" M="$$build_dir" modules """ + select({
+        ":debug": "DEBUG=1",
+        "//conditions:default": "",
+    }) + """
 cp "$$build_dir/eth_xdma.ko" $@
 """,
     local = True,

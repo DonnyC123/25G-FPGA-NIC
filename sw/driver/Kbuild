@@ -1,0 +1,6 @@
+ifeq ($(DEBUG),1)
+ccflags-y += -D__LIBXDMA_DEBUG__
+endif
+
+obj-m := eth_xdma.o
+eth_xdma-objs := libxdma.o xdma_thread.o eth_main.o eth_netdev.o eth_rx_ring.o eth_tx_ring.o
