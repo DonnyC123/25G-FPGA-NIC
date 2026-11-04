@@ -117,9 +117,6 @@ struct xdma_tx_ring {
 	// Keept track of previous descriptor completed count by hardware
 	u32 last_hw_completed;
 
-	// Descriptors queued but not yet granted to the hardware
-	u32 pending_credits;
-
 	// Lock needed to protect queue when multiple cpus try to transmit packets
 	spinlock_t lock;
 

@@ -260,24 +260,10 @@ int tx_napi_poll(struct napi_struct *napi, int weight) {
 	return packets_processed;
 }
 
-// Grants queued descriptors to the hardware. Call with tx_ring->lock held.
-static void tx_ring_doorbell(struct xdma_tx_ring *tx_ring) {
-	struct engine_sgdma_regs *sgdma = tx_ring->h2c_engine->sgdma_regs;
-
-	if (!tx_ring->pending_credits)
-		return;
-
-	// Ensure the descriptors are visible to the device before granting credit
-	dma_wmb();
-
-	write_register(cpu_to_le32(tx_ring->pending_credits), &sgdma->credits,
-		       (unsigned long)&sgdma->credits - (unsigned long)sgdma);
-	tx_ring->pending_credits = 0;
-}
-
 static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_dev) {
 	struct net_device_priv *xndev = netdev_priv(net_dev);
 	struct xdma_tx_ring *tx_ring = xndev->tx_ring;
+	struct engine_sgdma_regs *sgdma = tx_ring->h2c_engine->sgdma_regs;
 	struct net_device_stats *stats = &net_dev->stats;
 	int nr_desc;
 	int len;
@@ -285,9 +271,6 @@ static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_de
 	if (skb->len < ETH_ZLEN) {
 		if (skb_padto(skb, ETH_ZLEN)) {
 			stats->tx_dropped++;
-			spin_lock_bh(&tx_ring->lock);
-			tx_ring_doorbell(tx_ring);
-			spin_unlock_bh(&tx_ring->lock);
 			return NETDEV_TX_OK;
 		}
 	}
@@ -296,7 +279,6 @@ static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_de
 
 	if (unlikely(tx_free_slots(tx_ring) < skb_shinfo(skb)->nr_frags + 1)) {
 		netif_stop_queue(net_dev);
-		tx_ring_doorbell(tx_ring);
 		spin_unlock_bh(&tx_ring->lock);
 		return NETDEV_TX_BUSY;
 	}
@@ -305,7 +287,6 @@ static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_de
 
 	nr_desc = tx_map_skb(tx_ring, skb);
 	if (unlikely(nr_desc < 0)) {
-		tx_ring_doorbell(tx_ring);
 		spin_unlock_bh(&tx_ring->lock);
 		stats->tx_dropped++;
 		dev_kfree_skb_any(skb);
@@ -313,12 +294,13 @@ static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_de
 	}
 
 	tx_ring->driver_pi = (tx_ring->driver_pi + nr_desc) % tx_ring->count;
-	tx_ring->pending_credits += nr_desc;
 	if (unlikely(tx_free_slots(tx_ring) < TX_DESC_NEEDED))
 		netif_stop_queue(net_dev);
 
-	if (!netdev_xmit_more() || netif_queue_stopped(net_dev))
-		tx_ring_doorbell(tx_ring);
+	// Ensure the descriptors are visible to the device before granting credit
+	dma_wmb();
+
+	write_register(cpu_to_le32(nr_desc), &sgdma->credits, (unsigned long)&sgdma->credits - (unsigned long)sgdma);
 
 	spin_unlock_bh(&tx_ring->lock);
 
@@ -403,7 +385,6 @@ static int eth_close(struct net_device *net_dev) {
 		tx_ring->driver_pi = 0;
 		tx_ring->driver_ci = 0;
 		tx_ring->last_hw_completed = 0;
-		tx_ring->pending_credits = 0;
 		spin_unlock_bh(&tx_ring->lock);
 	}
 
