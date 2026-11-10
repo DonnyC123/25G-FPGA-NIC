@@ -2,6 +2,7 @@ module pkt_parser_top
   import parser_pkg::*;
 #(
   parameter int DATA_W     = 256,
+  parameter int OPT_STAGES = 4,
   parameter int EXT_STAGES = 2
 ) (
   input  logic                             axi_clk,
@@ -16,6 +17,7 @@ module pkt_parser_top
   parse_meta_t meta;
 
   pkt_parser #(
+      .OPT_STAGES(OPT_STAGES),
       .EXT_STAGES(EXT_STAGES)
   ) pkt_parser_inst (
       .clk   (axi_clk),

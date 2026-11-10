@@ -17,6 +17,7 @@ hw/common/pkg/parser_pkg.sv
 hw/parser/rtl/parse_reg.sv
 hw/parser/rtl/field_capture.sv
 hw/parser/rtl/eth_stage.sv
+hw/parser/rtl/ipv4_opt_stage.sv
 hw/parser/rtl/ipv4_stage.sv
 hw/parser/rtl/ipv6_ext_stage.sv
 hw/parser/rtl/ipv6_stage.sv

@@ -26,6 +26,12 @@ package parser_pkg;
   localparam int IPV4_ADDR_OFF    = 12;
   localparam int IPV4_MIN_IHL     = 5;
   localparam int IPV4_IHL_SHIFT   = 2;
+  localparam int IPV4_HDR_BYTES   = 20;
+
+  localparam int OPT_NOP_RUN      = 4;
+  localparam int OPT_WINDOW       = OPT_NOP_RUN + 3;
+  localparam int OPT_MIN_LEN      = 2;
+  localparam int OPT_SRR_MIN_LEN  = 7;
 
   localparam int IPV6_VERSION     = 6;
   localparam int IPV6_VER_OFF     = 0;
@@ -53,8 +59,13 @@ package parser_pkg;
   localparam int CSUM_W           = 16;
   localparam int CSUM_BYTES       = CSUM_W / 8;
   localparam int IPV4_CSUM_OFF    = 10;
-  localparam int IPV4_ADDR_BYTES  = 8;
-  localparam int IPV6_ADDR_BYTES  = 32;
+  localparam int IPV4_ADDR_LEN    = 4;
+  localparam int IPV6_ADDR_LEN    = 16;
+
+  localparam logic [7:0]            IPV4_OPT_EOL  = 8'h00;
+  localparam logic [7:0]            IPV4_OPT_NOP  = 8'h01;
+  localparam logic [7:0]            IPV4_OPT_LSRR = 8'h83;
+  localparam logic [7:0]            IPV4_OPT_SSRR = 8'h89;
 
   localparam logic [IP_LEN_W-1:0]   IPV4_FRAG_MASK = 16'h3FFF;
   localparam logic [IP_LEN_W-1:0]   IPV6_FRAG_MASK = 16'hFFF9;
@@ -84,6 +95,10 @@ package parser_pkg;
     logic                    udp_ok;
     logic                    csum_skip;
     logic [OFF_W-1:0]        csum_pos;
+    logic                    opt_done;
+    logic [OFF_W-1:0]        opt_off;
+    logic                    dst_alt;
+    logic [OFF_W-1:0]        dst_alt_off;
   } parse_meta_t;
 
   typedef struct packed {

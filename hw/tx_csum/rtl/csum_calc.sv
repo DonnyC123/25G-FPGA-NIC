@@ -56,15 +56,22 @@ module csum_calc
   logic                  is_ipv4;
   logic                  is_ip;
   logic [OFF_W-1:0]      ip_csum_pos;
-  logic [OFF_W-1:0]      addr_bytes;
+  logic [OFF_W-1:0]      addr_len;
+  logic [OFF_W-1:0]      dst_off;
   logic [MASK_W-1:0]     ip_mask;
   logic [MASK_W-1:0]     l4_mask;
+  logic [MASK_W-1:0]     dst_mask;
+  logic [MASK_W-1:0]     alt_mask;
   logic [OFF_W-1:0]      frame_len;
 
   logic [WORD_SUM_W-1:0] ip_word_d;
   logic [WORD_SUM_W-1:0] ip_word_q;
   logic [WORD_SUM_W-1:0] l4_word_d;
   logic [WORD_SUM_W-1:0] l4_word_q;
+  logic [WORD_SUM_W-1:0] dst_word_d;
+  logic [WORD_SUM_W-1:0] dst_word_q;
+  logic [WORD_SUM_W-1:0] alt_word_d;
+  logic [WORD_SUM_W-1:0] alt_word_q;
   logic                  word_valid_q;
   logic                  word_last_q;
   parse_meta_t           word_meta_q;
@@ -74,16 +81,25 @@ module csum_calc
   logic [ACC_W-1:0]      ip_acc_q;
   logic [ACC_W-1:0]      l4_acc_d;
   logic [ACC_W-1:0]      l4_acc_q;
+  logic [ACC_W-1:0]      dst_acc_d;
+  logic [ACC_W-1:0]      dst_acc_q;
+  logic [ACC_W-1:0]      alt_acc_d;
+  logic [ACC_W-1:0]      alt_acc_q;
   logic                  done_d;
   logic                  done_q;
   logic [ACC_W-1:0]      ip_total_d;
   logic [ACC_W-1:0]      ip_total_q;
   logic [ACC_W-1:0]      l4_total_d;
   logic [ACC_W-1:0]      l4_total_q;
+  logic [ACC_W-1:0]      dst_total_d;
+  logic [ACC_W-1:0]      dst_total_q;
+  logic [ACC_W-1:0]      alt_total_d;
+  logic [ACC_W-1:0]      alt_total_q;
   parse_meta_t           done_meta_q;
   logic [OFF_W-1:0]      done_len_q;
 
   logic [OFF_W-1:0]      l4_len;
+  logic [CSUM_W-1:0]     alt_sum;
   logic [CSUM_W-1:0]     l4_csum;
   csum_result_t          result_d;
   csum_result_t          result_q;
@@ -93,7 +109,8 @@ module csum_calc
     is_ipv4     = meta_i.eth_ok && meta_i.ethertype == ETHERTYPE_IPV4;
     is_ip       = is_ipv4 || (meta_i.eth_ok && meta_i.ethertype == ETHERTYPE_IPV6);
     ip_csum_pos = meta_i.payload_off + OFF_W'(IPV4_CSUM_OFF);
-    addr_bytes  = meta_i.ip_v6 ? OFF_W'(IPV6_ADDR_BYTES) : OFF_W'(IPV4_ADDR_BYTES);
+    addr_len    = meta_i.ip_v6 ? OFF_W'(IPV6_ADDR_LEN) : OFF_W'(IPV4_ADDR_LEN);
+    dst_off     = meta_i.addr_off + addr_len;
 
     ip_mask     = '0;
     if (is_ipv4) begin
@@ -101,18 +118,26 @@ module csum_calc
                 ~range_mask(meta_i.pos, ip_csum_pos, ip_csum_pos + OFF_W'(CSUM_BYTES));
     end
 
-    l4_mask = '0;
+    l4_mask  = '0;
+    dst_mask = '0;
+    alt_mask = '0;
     if (is_ip) begin
-      l4_mask = range_mask(meta_i.pos, meta_i.addr_off, meta_i.addr_off + addr_bytes);
+      l4_mask  = range_mask(meta_i.pos, meta_i.addr_off, dst_off);
+      dst_mask = range_mask(meta_i.pos, dst_off, dst_off + addr_len);
+    end
+    if (meta_i.dst_alt) begin
+      alt_mask = range_mask(meta_i.pos, meta_i.dst_alt_off, meta_i.dst_alt_off + addr_len);
     end
     if (meta_i.ip_ok && meta_i.l4_known) begin
       l4_mask |= range_mask(meta_i.pos, meta_i.l4_off, meta_i.l4_end) &
                  ~range_mask(meta_i.pos, meta_i.csum_pos, meta_i.csum_pos + OFF_W'(CSUM_BYTES));
     end
 
-    ip_word_d = sum_words(data_i, ip_mask & mask_i);
-    l4_word_d = sum_words(data_i, l4_mask & mask_i);
-    frame_len = meta_i.pos + OFF_W'($countones(mask_i));
+    ip_word_d  = sum_words(data_i, ip_mask & mask_i);
+    l4_word_d  = sum_words(data_i, l4_mask & mask_i);
+    dst_word_d = sum_words(data_i, dst_mask & mask_i);
+    alt_word_d = sum_words(data_i, alt_mask & mask_i);
+    frame_len  = meta_i.pos + OFF_W'($countones(mask_i));
   end
 
   always_ff @(posedge clk) begin
@@ -127,6 +152,8 @@ module csum_calc
     if (accept_i) begin
       ip_word_q   <= ip_word_d;
       l4_word_q   <= l4_word_d;
+      dst_word_q  <= dst_word_d;
+      alt_word_q  <= alt_word_d;
       word_last_q <= last_i;
       word_meta_q <= meta_i;
       word_len_q  <= frame_len;
@@ -134,40 +161,56 @@ module csum_calc
   end
 
   always_comb begin
-    ip_acc_d   = ip_acc_q;
-    l4_acc_d   = l4_acc_q;
-    done_d     = 1'b0;
-    ip_total_d = ip_total_q;
-    l4_total_d = l4_total_q;
+    ip_acc_d    = ip_acc_q;
+    l4_acc_d    = l4_acc_q;
+    dst_acc_d   = dst_acc_q;
+    alt_acc_d   = alt_acc_q;
+    done_d      = 1'b0;
+    ip_total_d  = ip_total_q;
+    l4_total_d  = l4_total_q;
+    dst_total_d = dst_total_q;
+    alt_total_d = alt_total_q;
 
     if (word_valid_q) begin
-      ip_acc_d = ip_acc_q + ACC_W'(ip_word_q);
-      l4_acc_d = l4_acc_q + ACC_W'(l4_word_q);
+      ip_acc_d  = ip_acc_q + ACC_W'(ip_word_q);
+      l4_acc_d  = l4_acc_q + ACC_W'(l4_word_q);
+      dst_acc_d = dst_acc_q + ACC_W'(dst_word_q);
+      alt_acc_d = alt_acc_q + ACC_W'(alt_word_q);
       if (word_last_q) begin
-        done_d     = 1'b1;
-        ip_total_d = ip_acc_d;
-        l4_total_d = l4_acc_d;
-        ip_acc_d   = '0;
-        l4_acc_d   = '0;
+        done_d      = 1'b1;
+        ip_total_d  = ip_acc_d;
+        l4_total_d  = l4_acc_d;
+        dst_total_d = dst_acc_d;
+        alt_total_d = alt_acc_d;
+        ip_acc_d    = '0;
+        l4_acc_d    = '0;
+        dst_acc_d   = '0;
+        alt_acc_d   = '0;
       end
     end
   end
 
   always_ff @(posedge clk) begin
     if (rst) begin
-      ip_acc_q <= '0;
-      l4_acc_q <= '0;
-      done_q   <= 1'b0;
+      ip_acc_q  <= '0;
+      l4_acc_q  <= '0;
+      dst_acc_q <= '0;
+      alt_acc_q <= '0;
+      done_q    <= 1'b0;
     end else begin
-      ip_acc_q <= ip_acc_d;
-      l4_acc_q <= l4_acc_d;
-      done_q   <= done_d;
+      ip_acc_q  <= ip_acc_d;
+      l4_acc_q  <= l4_acc_d;
+      dst_acc_q <= dst_acc_d;
+      alt_acc_q <= alt_acc_d;
+      done_q    <= done_d;
     end
   end
 
   always_ff @(posedge clk) begin
-    ip_total_q <= ip_total_d;
-    l4_total_q <= l4_total_d;
+    ip_total_q  <= ip_total_d;
+    l4_total_q  <= l4_total_d;
+    dst_total_q <= dst_total_d;
+    alt_total_q <= alt_total_d;
     if (done_d) begin
       done_meta_q <= word_meta_q;
       done_len_q  <= word_len_q;
@@ -176,7 +219,12 @@ module csum_calc
 
   always_comb begin
     l4_len           = done_meta_q.l4_end - done_meta_q.l4_off;
-    l4_csum          = ~fold(l4_total_q + ACC_W'(done_meta_q.l4_proto) + ACC_W'(l4_len));
+    alt_sum          = fold(alt_total_q);
+    if (done_meta_q.dst_alt_off[0]) begin
+      alt_sum = {alt_sum[BYTE_W-1:0], alt_sum[CSUM_W-1-:BYTE_W]};
+    end
+    l4_csum          = ~fold(l4_total_q + (done_meta_q.dst_alt ? ACC_W'(alt_sum) : dst_total_q) +
+                             ACC_W'(done_meta_q.l4_proto) + ACC_W'(l4_len));
 
     result_d         = result_q;
     result_d.ip_en   = done_meta_q.eth_ok && done_meta_q.ethertype == ETHERTYPE_IPV4 && done_meta_q.ip_ok &&

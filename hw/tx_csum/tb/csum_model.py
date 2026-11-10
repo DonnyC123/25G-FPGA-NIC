@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from hw.common.pkg.parser_pkg import (
     CSUM_W,
     ETHERTYPE_IPV4,
-    IPV4_ADDR_BYTES,
+    IPV4_ADDR_LEN,
     IPV4_CSUM_OFF,
-    IPV6_ADDR_BYTES,
+    IPV6_ADDR_LEN,
     OFF_W,
 )
 from hw.parser.tb.pkt_parser_test_base import ParseMeta, expected_meta
@@ -73,14 +73,16 @@ def zero_field(data: bytes, off: int) -> bytes:
 
 
 def l4_sum(frame: bytes, meta: ParseMeta) -> int:
-    addr_len = IPV6_ADDR_BYTES if meta.ip_v6 else IPV4_ADDR_BYTES
+    addr_len = IPV6_ADDR_LEN if meta.ip_v6 else IPV4_ADDR_LEN
+    dst_off = meta.dst_alt_off if meta.dst_alt else meta.addr_off + addr_len
     segment = zero_field(frame[meta.l4_off : meta.l4_end], meta.csum_pos - meta.l4_off)
-    pseudo = ones_sum(frame[meta.addr_off : meta.addr_off + addr_len]) + meta.l4_proto + meta.l4_end - meta.l4_off
-    return fold(pseudo + ones_sum(segment))
+    src = ones_sum(frame[meta.addr_off : meta.addr_off + addr_len])
+    dst = ones_sum(frame[dst_off : dst_off + addr_len])
+    return fold(src + dst + meta.l4_proto + meta.l4_end - meta.l4_off + ones_sum(segment))
 
 
-def expected_csum(frame: bytes, ext_stages: int) -> CsumResult:
-    meta = expected_meta(frame, ext_stages)
+def expected_csum(frame: bytes, ext_stages: int, opt_stages: int = 4) -> CsumResult:
+    meta = expected_meta(frame, ext_stages, opt_stages)
     n = len(frame)
     ip_en = meta.eth_ok and meta.ethertype == ETHERTYPE_IPV4 and meta.ip_ok and not meta.ip_v6 and n >= meta.l4_off
     ip_csum = 0
@@ -109,8 +111,8 @@ def patch_frame(frame: bytes, result: CsumResult) -> bytes:
     return bytes(out)
 
 
-def force_zero_csum(frame: bytes, ext_stages: int) -> bytes:
-    meta = expected_meta(frame, ext_stages)
+def force_zero_csum(frame: bytes, ext_stages: int, opt_stages: int = 4) -> bytes:
+    meta = expected_meta(frame, ext_stages, opt_stages)
     last_pair = meta.l4_off + ((meta.l4_end - meta.l4_off) // 2 - 1) * 2
     out = bytearray(zero_field(frame, last_pair))
     word = CSUM_MASK - l4_sum(bytes(out), meta)

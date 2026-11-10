@@ -6,6 +6,7 @@ module tx_top
   parameter int FIFO_DEPTH       = 64,
   parameter int MIN_FRAME_BYTES  = 60,
   parameter int SCRAMBLER_BYPASS = 0,
+  parameter int OPT_STAGES       = 4,
   parameter int EXT_STAGES       = 2
 ) (
   input  logic                     axi_clk,
@@ -35,6 +36,7 @@ module tx_top
   logic         fifo_result_ready;
 
   pkt_parser #(
+      .OPT_STAGES(OPT_STAGES),
       .EXT_STAGES(EXT_STAGES)
   ) pkt_parser_inst (
       .clk   (axi_clk),

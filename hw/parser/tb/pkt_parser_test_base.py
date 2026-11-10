@@ -16,7 +16,16 @@ from hw.common.pkg.parser_pkg import (
     IP_PROTO_TCP,
     IP_PROTO_UDP,
     IP_PROTO_W,
+    IPV4_ADDR_LEN,
+    IPV4_HDR_BYTES,
+    IPV4_OPT_EOL,
+    IPV4_OPT_LSRR,
+    IPV4_OPT_NOP,
+    IPV4_OPT_SSRR,
     OFF_W,
+    OPT_MIN_LEN,
+    OPT_NOP_RUN,
+    OPT_SRR_MIN_LEN,
     VLAN_COUNT_W,
 )
 from hw.parser.tb.eth_stage_test_base import expected_meta as expected_eth
@@ -53,6 +62,10 @@ META_FIELDS = [
     ("udp_ok", 1),
     ("csum_skip", 1),
     ("csum_pos", OFF_W),
+    ("opt_done", 1),
+    ("opt_off", OFF_W),
+    ("dst_alt", 1),
+    ("dst_alt_off", OFF_W),
 ]
 META_W = sum(width for _, width in META_FIELDS)
 
@@ -75,6 +88,10 @@ class ParseMeta:
     udp_ok: int = 0
     csum_skip: int = 0
     csum_pos: int = 0
+    opt_done: int = 0
+    opt_off: int = 0
+    dst_alt: int = 0
+    dst_alt_off: int = 0
 
 
 @dataclass(frozen=True)
@@ -100,11 +117,46 @@ def normalize(meta: ParseMeta, frame_len: int) -> tuple:
         if meta.l4_known:
             ip += (meta.l4_proto, meta.l4_off, meta.l4_end)
     l4_ok = meta.tcp_ok or meta.udp_ok
-    l4 = (meta.tcp_ok, meta.udp_ok, (meta.csum_pos, meta.csum_skip) if l4_ok else None)
+    dst = meta.dst_alt_off if meta.dst_alt else None
+    l4 = (meta.tcp_ok, meta.udp_ok, (meta.csum_pos, meta.csum_skip, dst) if l4_ok else None)
     return eth + ip + l4
 
 
-def expected_meta(frame: bytes, ext_stages: int) -> ParseMeta:
+def walk_options(frame: bytes, opt_off: int, opt_end: int, stages: int) -> tuple[bool, int | None]:
+    def present(i: int) -> bool:
+        return i < len(frame)
+
+    dst_alt_off = None
+    for _ in range(stages):
+        nops = 0
+        while nops < OPT_NOP_RUN and present(opt_off + nops) and frame[opt_off + nops] == IPV4_OPT_NOP:
+            nops += 1
+        start = opt_off + nops
+        if start >= opt_end:
+            return False, dst_alt_off
+        if nops == OPT_NOP_RUN:
+            opt_off = start
+            continue
+        if not (present(start) and present(start + 1)):
+            return True, dst_alt_off
+        opt_type, opt_len = frame[start], frame[start + 1]
+        if opt_type == IPV4_OPT_EOL:
+            return False, dst_alt_off
+        srr = opt_type in (IPV4_OPT_LSRR, IPV4_OPT_SSRR)
+        next_off = start + opt_len
+        bad = opt_len < OPT_MIN_LEN or next_off > opt_end
+        bad = bad or (srr and (opt_len < OPT_SRR_MIN_LEN or dst_alt_off is not None))
+        if bad or (srr and not present(start + 2)):
+            return True, dst_alt_off
+        if srr and frame[start + 2] <= opt_len:
+            dst_alt_off = next_off - IPV4_ADDR_LEN
+        opt_off = next_off
+        if next_off == opt_end:
+            return False, dst_alt_off
+    return True, dst_alt_off
+
+
+def expected_meta(frame: bytes, ext_stages: int, opt_stages: int = 4) -> ParseMeta:
     n = len(frame)
 
     def has(*idx: int) -> bool:
@@ -126,6 +178,7 @@ def expected_meta(frame: bytes, ext_stages: int) -> ParseMeta:
     addr_off = 0
     l4_known = False
     csum_skip = False
+    dst_alt_off = None
     proto = l4_off = l4_end = 0
 
     if eth.ok and eth.ethertype == ETHERTYPE_IPV4:
@@ -133,10 +186,11 @@ def expected_meta(frame: bytes, ext_stages: int) -> ParseMeta:
         addr_off = p + 12
         if l4_known:
             ver, ihl = frame[p] >> 4, frame[p] & 0xF
-            csum_skip = ihl != 5
             total = be16(p + 2)
             ip_ok = ver == 4 and ihl >= 5 and total >= ihl * 4 and be16(p + 6) & 0x3FFF == 0
             proto, l4_off, l4_end = frame[p + 9], p + ihl * 4, p + total
+            if ip_ok and ihl != 5:
+                csum_skip, dst_alt_off = walk_options(frame, p + IPV4_HDR_BYTES, l4_off, opt_stages)
     elif eth.ok and eth.ethertype == ETHERTYPE_IPV6:
         l4_known = has(p, p + 4, p + 5, p + 6)
         ip_v6 = True
@@ -188,6 +242,8 @@ def expected_meta(frame: bytes, ext_stages: int) -> ParseMeta:
         udp_ok=int(udp_ok),
         csum_skip=int(csum_skip),
         csum_pos=l4_off + (6 if proto == IP_PROTO_UDP else 16),
+        dst_alt=int(dst_alt_off is not None),
+        dst_alt_off=dst_alt_off or 0,
     )
 
 
@@ -197,9 +253,11 @@ def describe(item: ParserItem) -> str:
 
 class PktParserModel(GenericModel):
     ext_stages = 0
+    opt_stages = 0
 
     def process(self, data: bytes) -> None:
-        self.items.append(ParserItem(data, normalize(expected_meta(data, self.ext_stages), len(data))))
+        meta = expected_meta(data, self.ext_stages, self.opt_stages)
+        self.items.append(ParserItem(data, normalize(meta, len(data))))
 
 
 class PktParserMonitor(GenericMonitor):
@@ -223,6 +281,11 @@ class PktParserMonitor(GenericMonitor):
                 want = (final.ip_ok, final.l4_known, final.l4_proto, final.l4_off, final.l4_end)
                 if got != want:
                     raise AssertionError(f"l4 meta at pos {word.pos}: {got} != {want}, {frame[:80].hex()}")
+            word_claims_alt = word.dst_alt and end > word.dst_alt_off
+            final_has_alt = final.dst_alt and end > final.dst_alt_off
+            if (final.tcp_ok or final.udp_ok) and (word_claims_alt or final_has_alt):
+                if (word.dst_alt, word.dst_alt_off) != (final.dst_alt, final.dst_alt_off):
+                    raise AssertionError(f"dst_alt meta at pos {word.pos}: {word} != {final}, {frame[:80].hex()}")
             for name in ("tcp_ok", "udp_ok"):
                 if getattr(word, name) and not getattr(final, name):
                     raise AssertionError(f"{name} at pos {word.pos} but not at the end, {frame[:80].hex()}")
@@ -270,6 +333,7 @@ class PktParserTestBase(GenericTestBase[AxiStreamDriver, AxiStreamSequence, PktP
             model=PktParserModel,
         )
         self.model.ext_stages = int(dut.EXT_STAGES.value)
+        self.model.opt_stages = int(dut.OPT_STAGES.value)
         self.ready_driver = AxiStreamReadyDriver(dut.m_axi.ready, dut.axi_clk, ready_probability)
 
     @classmethod

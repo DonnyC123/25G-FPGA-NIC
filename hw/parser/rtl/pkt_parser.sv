@@ -1,6 +1,7 @@
 module pkt_parser
   import parser_pkg::*;
 #(
+  parameter int OPT_STAGES = 4,
   parameter int EXT_STAGES = 2
 ) (
   input  logic                clk,
@@ -12,13 +13,17 @@ module pkt_parser
 
   localparam int DATA_W = s_axi.DATA_W;
 
+  if (OPT_STAGES < 1) begin : g_opt_check
+    $error("OPT_STAGES must be at least 1, got %0d", OPT_STAGES);
+  end
+
   axi_stream_if #(.DATA_W(DATA_W)) eth_axi ();
-  axi_stream_if #(.DATA_W(DATA_W)) ipv4_axi ();
+  axi_stream_if #(.DATA_W(DATA_W)) opt_axi[OPT_STAGES+1] ();
   axi_stream_if #(.DATA_W(DATA_W)) ext_axi[EXT_STAGES+1] ();
   axi_stream_if #(.DATA_W(DATA_W)) tcp_axi ();
 
   parse_meta_t                  eth_meta;
-  parse_meta_t                  ipv4_meta;
+  parse_meta_t [OPT_STAGES:0]   opt_meta;
   parse_meta_t [EXT_STAGES:0]   ext_meta;
   parse_meta_t                  tcp_meta;
 
@@ -35,15 +40,28 @@ module pkt_parser
       .rst   (rst),
       .s_axi (eth_axi),
       .meta_i(eth_meta),
-      .m_axi (ipv4_axi),
-      .meta_o(ipv4_meta)
+      .m_axi (opt_axi[0]),
+      .meta_o(opt_meta[0])
   );
+
+  for (genvar i = 0; i < OPT_STAGES; i++) begin : g_opt
+    ipv4_opt_stage #(
+        .FINAL(int'(i == OPT_STAGES - 1))
+    ) ipv4_opt_stage_inst (
+        .clk   (clk),
+        .rst   (rst),
+        .s_axi (opt_axi[i]),
+        .meta_i(opt_meta[i]),
+        .m_axi (opt_axi[i+1]),
+        .meta_o(opt_meta[i+1])
+    );
+  end
 
   ipv6_stage ipv6_stage_inst (
       .clk   (clk),
       .rst   (rst),
-      .s_axi (ipv4_axi),
-      .meta_i(ipv4_meta),
+      .s_axi (opt_axi[OPT_STAGES]),
+      .meta_i(opt_meta[OPT_STAGES]),
       .m_axi (ext_axi[0]),
       .meta_o(ext_meta[0])
   );

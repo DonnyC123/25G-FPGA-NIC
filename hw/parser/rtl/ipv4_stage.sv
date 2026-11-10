@@ -114,7 +114,8 @@ module ipv4_stage
                             ihl >= IP_VERSION_W'(IPV4_MIN_IHL) && OFF_W'(total_len) >= hdr_bytes &&
                             (frag & IPV4_FRAG_MASK) == '0;
       meta_next.ip_v6     = 1'b0;
-      meta_next.csum_skip = ihl != IP_VERSION_W'(IPV4_MIN_IHL);
+      meta_next.opt_done  = ihl == IP_VERSION_W'(IPV4_MIN_IHL);
+      meta_next.opt_off   = meta_i.payload_off + OFF_W'(IPV4_HDR_BYTES);
       meta_next.addr_off  = meta_i.payload_off + OFF_W'(IPV4_ADDR_OFF);
       meta_next.l4_known  = fields_present;
       meta_next.l4_proto  = proto;

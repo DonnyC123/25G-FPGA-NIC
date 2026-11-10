@@ -14,6 +14,10 @@ PARSER_DEPS = {
         ":field_capture",
         ":parse_reg",
     ],
+    "ipv4_opt_stage": [
+        ":field_capture",
+        ":parse_reg",
+    ],
     "ipv6_stage": [
         ":field_capture",
         ":parse_reg",
@@ -32,6 +36,7 @@ PARSER_DEPS = {
     ],
     "pkt_parser": [
         ":eth_stage",
+        ":ipv4_opt_stage",
         ":ipv4_stage",
         ":ipv6_ext_stage",
         ":ipv6_stage",

@@ -20,9 +20,10 @@ CLK_PERIODS_PS = {"axi_clk": 4000}
 
 class CsumCalcModel(GenericModel):
     ext_stages = 0
+    opt_stages = 0
 
     def process(self, data: bytes) -> None:
-        self.items.append(expected_csum(data, self.ext_stages).normalized())
+        self.items.append(expected_csum(data, self.ext_stages, self.opt_stages).normalized())
 
 
 class CsumResultMonitor(GenericMonitor):
@@ -52,6 +53,7 @@ class CsumCalcTestBase(GenericTestBase[AxiStreamDriver, AxiStreamSequence, CsumR
             model=CsumCalcModel,
         )
         self.model.ext_stages = int(dut.EXT_STAGES.value)
+        self.model.opt_stages = int(dut.OPT_STAGES.value)
         self.ready_driver = AxiStreamReadyDriver(dut.m_axi.ready, dut.axi_clk, ready_probability)
 
     @classmethod
