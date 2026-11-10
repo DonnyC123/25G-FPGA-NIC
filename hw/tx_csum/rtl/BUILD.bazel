@@ -1,0 +1,22 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "csum_calc",
+    srcs = ["csum_calc.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:pcs_pkg",
+    ],
+)
+
+verilog_library(
+    name = "csum_insert",
+    srcs = ["csum_insert.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rtl_utils/if:tx_eth_stream_if",
+    ],
+)

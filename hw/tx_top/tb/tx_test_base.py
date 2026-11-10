@@ -13,9 +13,17 @@ from hw.tb_utils.net.pcs_raw import PcsRawMonitor
 from hw.tb_utils.net.tx_frame_model import TxFrameModel
 from hw.tb_utils.random_utils import random_frame
 from hw.tb_utils.tb_common import initialize_tb, reset_dut
+from hw.tx_csum.tb.csum_model import expected_csum, patch_frame
 
 CLK_PERIODS_PS = {"axi_clk": 4000, "eth_clk": 3102}
 DRAIN_CYCLES = 20_000
+
+
+class TxTopModel(TxFrameModel):
+    ext_stages = 2
+
+    def process(self, data: bytes) -> None:
+        self.items.append(patch_frame(data, expected_csum(data, self.ext_stages)))
 
 
 class TxTopMonitor(PcsRawMonitor):
@@ -24,7 +32,7 @@ class TxTopMonitor(PcsRawMonitor):
 
 
 class TxTestBase(
-    GenericTestBase[AxiStreamDriver, AxiStreamSequence, TxTopMonitor, TxFrameModel]
+    GenericTestBase[AxiStreamDriver, AxiStreamSequence, TxTopMonitor, TxTopModel]
 ):
     def __init__(self, dut) -> None:
         super().__init__(
@@ -33,7 +41,7 @@ class TxTestBase(
             sequence_item=AxiStreamItem,
             sequence=AxiStreamSequence,
             monitor=TxTopMonitor,
-            model=TxFrameModel,
+            model=TxTopModel,
         )
         self.model.min_frame_bytes = int(dut.MIN_FRAME_BYTES.value)
         self.max_frame = int(dut.FIFO_DEPTH.value) * AXI_WORD_BYTES - 1

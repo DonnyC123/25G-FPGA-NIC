@@ -1,0 +1,77 @@
+load("@rules_cocotb//cocotb:cocotb_test.bzl", "cocotb_test")
+load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "eth_stage_top",
+    srcs = ["eth_stage_top.sv"],
+    visibility = ["//tools:__pkg__"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/parser/rtl:eth_stage",
+        "//hw/rtl_utils/if:axi_stream_if",
+    ],
+)
+
+py_library(
+    name = "eth_stage_tb",
+    srcs = ["eth_stage_test_base.py"],
+    deps = [
+        "//hw/common/pkg:parser_pkg_py",
+        "//hw/tb_utils",
+        "//hw/tb_utils/net",
+        "//tools/cocotb",
+    ],
+)
+
+cocotb_test(
+    name = "eth_stage_test",
+    srcs = ["eth_stage_test.py"],
+    module = ":eth_stage_top",
+    deps = [":eth_stage_tb"],
+)
+
+verilog_library(
+    name = "pkt_parser_top",
+    srcs = ["pkt_parser_top.sv"],
+    visibility = ["//tools:__pkg__"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/parser/rtl:pkt_parser",
+        "//hw/rtl_utils/if:axi_stream_if",
+    ],
+)
+
+py_library(
+    name = "pkt_parser_tb",
+    srcs = [
+        "parser_frames.py",
+        "pkt_parser_test_base.py",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":eth_stage_tb",
+        "//hw/common/pkg:parser_pkg_py",
+        "//hw/tb_utils",
+        "//hw/tb_utils/net",
+        "//tools/cocotb",
+    ],
+)
+
+PKT_PARSER_CASES = {
+    "pkt_parser_test": 2,
+    "pkt_parser_test_one_ext": 1,
+}
+
+[
+    cocotb_test(
+        name = name,
+        srcs = ["pkt_parser_test.py"],
+        module = ":pkt_parser_top",
+        params = [
+            "EXT_STAGES=%d" % ext_stages,
+        ],
+        deps = [":pkt_parser_tb"],
+    )
+    for name, ext_stages in PKT_PARSER_CASES.items()
+]

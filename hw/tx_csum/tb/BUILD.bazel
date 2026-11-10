@@ -1,0 +1,82 @@
+load("@rules_cocotb//cocotb:cocotb_test.bzl", "cocotb_test")
+load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "csum_calc_top",
+    srcs = ["csum_calc_top.sv"],
+    visibility = ["//tools:__pkg__"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/parser/rtl:pkt_parser",
+        "//hw/rtl_utils/if:axi_stream_if",
+        "//hw/tx_csum/rtl:csum_calc",
+    ],
+)
+
+verilog_library(
+    name = "csum_insert_top",
+    srcs = ["csum_insert_top.sv"],
+    visibility = ["//tools:__pkg__"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/rtl_utils/if:tx_eth_stream_if",
+        "//hw/tx_csum/rtl:csum_insert",
+    ],
+)
+
+verilog_library(
+    name = "async_fifo_top",
+    srcs = ["async_fifo_top.sv"],
+    visibility = ["//tools:__pkg__"],
+    deps = ["//hw/rtl_utils:async_fifo"],
+)
+
+py_library(
+    name = "csum_tb",
+    srcs = [
+        "csum_calc_test_base.py",
+        "csum_insert_test_base.py",
+        "csum_model.py",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hw/common/pkg:parser_pkg_py",
+        "//hw/parser/tb:pkt_parser_tb",
+        "//hw/tb_utils",
+        "//hw/tb_utils/net",
+        "//tools/cocotb",
+    ],
+)
+
+cocotb_test(
+    name = "csum_calc_test",
+    srcs = ["csum_calc_test.py"],
+    module = ":csum_calc_top",
+    deps = [":csum_tb"],
+)
+
+cocotb_test(
+    name = "csum_insert_test",
+    srcs = ["csum_insert_test.py"],
+    module = ":csum_insert_top",
+    deps = [":csum_tb"],
+)
+
+ASYNC_FIFO_CASES = {
+    "async_fifo_test": 4,
+    "async_fifo_test_deep": 64,
+}
+
+[
+    cocotb_test(
+        name = name,
+        srcs = ["async_fifo_test.py"],
+        module = ":async_fifo_top",
+        params = [
+            "FIFO_DEPTH=%d" % depth,
+        ],
+        deps = ["//hw/tb_utils"],
+    )
+    for name, depth in ASYNC_FIFO_CASES.items()
+]

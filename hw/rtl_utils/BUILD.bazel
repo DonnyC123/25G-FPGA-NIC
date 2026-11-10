@@ -1,6 +1,7 @@
 load("@rules_verilog//verilog:defs.bzl", "verilog_library")
 
 RTL_UTILS_DEPS = {
+    "async_fifo": [":shift_reg"],
     "async_packet_fifo": [":shift_reg"],
     "bram": [],
     "crc32_word": ["//hw/common/pkg:crc32_pkg"],

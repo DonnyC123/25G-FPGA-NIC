@@ -1,0 +1,51 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+PARSER_PKGS = [
+    "//hw/common/pkg:parser_pkg",
+    "//hw/common/pkg:pcs_pkg",
+    "//hw/rtl_utils/if:axi_stream_if",
+]
+
+PARSER_DEPS = {
+    "field_capture": [],
+    "parse_reg": [],
+    "eth_stage": [":parse_reg"],
+    "ipv4_stage": [
+        ":field_capture",
+        ":parse_reg",
+    ],
+    "ipv6_stage": [
+        ":field_capture",
+        ":parse_reg",
+    ],
+    "ipv6_ext_stage": [
+        ":field_capture",
+        ":parse_reg",
+    ],
+    "tcp_stage": [
+        ":field_capture",
+        ":parse_reg",
+    ],
+    "udp_stage": [
+        ":field_capture",
+        ":parse_reg",
+    ],
+    "pkt_parser": [
+        ":eth_stage",
+        ":ipv4_stage",
+        ":ipv6_ext_stage",
+        ":ipv6_stage",
+        ":tcp_stage",
+        ":udp_stage",
+    ],
+}
+
+[
+    verilog_library(
+        name = name,
+        srcs = [name + ".sv"],
+        visibility = ["//visibility:public"],
+        deps = PARSER_PKGS + deps,
+    )
+    for name, deps in PARSER_DEPS.items()
+]

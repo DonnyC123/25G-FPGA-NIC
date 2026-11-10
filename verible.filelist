@@ -13,8 +13,17 @@ hw/rx_pcs/rtl/pcs_decoder.sv
 hw/rx_fifo/rtl/rx_fifo_ctrl.sv
 hw/rx_mac/rtl/crc_checker.sv
 hw/rx_pcs/rtl/rx_pcs.sv
-hw/rtl_utils/skid_buffer.sv
+hw/common/pkg/parser_pkg.sv
+hw/parser/rtl/parse_reg.sv
+hw/parser/rtl/field_capture.sv
+hw/parser/rtl/eth_stage.sv
+hw/parser/rtl/ipv4_stage.sv
+hw/parser/rtl/ipv6_ext_stage.sv
+hw/parser/rtl/ipv6_stage.sv
+hw/parser/rtl/tcp_stage.sv
+hw/parser/rtl/udp_stage.sv
 hw/rtl_utils/if/tx_eth_stream_if.sv
+hw/rtl_utils/skid_buffer.sv
 hw/tx_mac/rtl/tx_fcs_encoder.sv
 hw/tx_mac/rtl/tx_pad_counter.sv
 hw/tx_mac/rtl/tx_fcs_inserter.sv
@@ -23,6 +32,10 @@ hw/tx_mac/rtl/tx_framer_out.sv
 hw/tx_pcs/rtl/scrambler.sv
 hw/tx_pcs/rtl/tx_gearbox.sv
 hw/tx_mac/rtl/tx_framer.sv
+hw/parser/rtl/pkt_parser.sv
+hw/rtl_utils/async_fifo.sv
+hw/tx_csum/rtl/csum_calc.sv
+hw/tx_csum/rtl/csum_insert.sv
 hw/tx_fifo/rtl/tx_fifo_ctrl.sv
 hw/tx_pcs/rtl/tx_pcs.sv
 hw/rtl_utils/rst_sync.sv
@@ -38,6 +51,8 @@ hw/rtl_utils/data_status_shift_reg_en.sv
 hw/rtl_utils/fifo.sv
 hw/rtl_utils/if/data_valid_if.sv
 top/nic_top.sv
+hw/parser/tb/eth_stage_top.sv
+hw/parser/tb/pkt_parser_top.sv
 hw/rx_fifo/tb/rx_fifo_top.sv
 hw/rx_mac/tb/crc_checker/crc_checker_top.sv
 hw/rx_top/tb/rx_top_wrapper.sv
@@ -45,3 +60,6 @@ hw/tx_fifo/tb/tx_fifo_top.sv
 hw/tx_mac/tb/tx_framer/tx_framer_top.sv
 hw/tx_pcs/tb/tx_pcs/tx_pcs_top.sv
 hw/tx_top/tb/tx_top_wrapper.sv
+hw/tx_csum/tb/async_fifo_top.sv
+hw/tx_csum/tb/csum_calc_top.sv
+hw/tx_csum/tb/csum_insert_top.sv
