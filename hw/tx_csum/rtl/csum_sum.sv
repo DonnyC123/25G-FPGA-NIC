@@ -2,7 +2,9 @@ module csum_sum
   import parser_pkg::OFF_W;
   import parser_pkg::CSUM_W;
   import parser_pkg::CSUM_BYTES;
+  import parser_pkg::CSUM_ACC_W;
   import parser_pkg::csum_result_t;
+  import parser_pkg::csum_fold;
   import tx_meta_pkg::tx_meta_t;
   import pcs_pkg::BYTE_W;
 #(
@@ -24,29 +26,12 @@ module csum_sum
 
   localparam int HALF_WORDS = MASK_W / CSUM_BYTES;
   localparam int WORD_SUM_W = CSUM_W + $clog2(HALF_WORDS);
-  localparam int ACC_W      = 32;
-  localparam int FOLDS      = 3;
-
-  function automatic logic [WORD_SUM_W-1:0] sum_words(input logic [MASK_W-1:0][BYTE_W-1:0] data,
-                                                      input logic [MASK_W-1:0] mask);
-    sum_words = '0;
-    for (int i = 0; i < HALF_WORDS; i++) begin
-      sum_words += WORD_SUM_W'({mask[2*i] ? data[2*i] : BYTE_W'(0), mask[2*i+1] ? data[2*i+1] : BYTE_W'(0)});
-    end
-  endfunction
-
-  function automatic logic [CSUM_W-1:0] fold(input logic [ACC_W-1:0] value);
-    logic [ACC_W-1:0] folded;
-    folded = value;
-    for (int i = 0; i < FOLDS; i++) begin
-      folded = ACC_W'(folded[CSUM_W-1:0]) + ACC_W'(folded[ACC_W-1:CSUM_W]);
-    end
-    return folded[CSUM_W-1:0];
-  endfunction
+  localparam int ACC_W      = CSUM_ACC_W;
 
   logic [OFF_W-1:0]      pos_d;
   logic [OFF_W-1:0]      pos_q;
 
+  logic [WORD_SUM_W-1:0] word_sum;
   logic [WORD_SUM_W-1:0] word_d;
   logic [WORD_SUM_W-1:0] word_q;
   logic                  word_valid_q;
@@ -70,8 +55,16 @@ module csum_sum
   csum_result_t          result_q;
   logic                  result_valid_q;
 
+  csum_word #(
+      .BYTES(MASK_W)
+  ) csum_word_inst (
+      .data_i(data_i),
+      .mask_i(csum_mask_i),
+      .sum_o (word_sum)
+  );
+
   always_comb begin
-    word_d = sum_words(data_i, csum_mask_i);
+    word_d = word_sum;
 
     pos_d = pos_q;
     if (accept_i) begin
@@ -131,7 +124,7 @@ module csum_sum
   end
 
   always_comb begin
-    sum = fold(total_q);
+    sum = csum_fold(total_q);
     if (done_meta_q.csum_start[0]) begin
       sum = {sum[BYTE_W-1:0], sum[CSUM_W-1-:BYTE_W]};
     end

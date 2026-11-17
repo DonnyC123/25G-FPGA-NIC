@@ -5,6 +5,10 @@ RTL_UTILS_DEPS = {
     "async_packet_fifo": [":shift_reg"],
     "bram": [],
     "crc32_word": ["//hw/common/pkg:crc32_pkg"],
+    "csum_word": [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:pcs_pkg",
+    ],
     "data_pipeline": [],
     "data_status_pipeline": [":data_pipeline"],
     "shift_reg": [],

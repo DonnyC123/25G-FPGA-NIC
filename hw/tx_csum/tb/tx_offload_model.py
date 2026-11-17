@@ -4,7 +4,7 @@ from typing import Self
 from hw.common.pkg import parser_pkg as pkg
 from hw.common.pkg import tx_meta_pkg as meta_pkg
 
-from hw.tx_csum.tb.csum_model import CSUM_MASK, fold, ones_sum
+from hw.tb_utils.net.checksum import CSUM_MASK, fold, ones_sum
 
 FIELDS = (
     ("csum_start", meta_pkg.TX_META_START_OFF),

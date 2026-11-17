@@ -31,5 +31,6 @@ verilog_library(
         "//hw/common/pkg:parser_pkg",
         "//hw/common/pkg:pcs_pkg",
         "//hw/common/pkg:tx_meta_pkg",
+        "//hw/rtl_utils:csum_word",
     ],
 )

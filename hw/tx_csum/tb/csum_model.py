@@ -2,8 +2,6 @@ from dataclasses import dataclass
 
 from hw.common.pkg.parser_pkg import CSUM_W, OFF_W
 
-CSUM_MASK = (1 << CSUM_W) - 1
-
 RESULT_FIELDS = [
     ("ip_en", 1),
     ("ip_pos", OFF_W),
@@ -34,18 +32,6 @@ def encode_result(result: CsumResult) -> int:
     for name, width in RESULT_FIELDS:
         value = (value << width) | (getattr(result, name) & ((1 << width) - 1))
     return value
-
-
-def fold(total: int) -> int:
-    while total >> CSUM_W:
-        total = (total & CSUM_MASK) + (total >> CSUM_W)
-    return total
-
-
-def ones_sum(data: bytes) -> int:
-    if len(data) % 2:
-        data += b"\0"
-    return fold(sum(int.from_bytes(data[i : i + 2], "big") for i in range(0, len(data), 2)))
 
 
 def patch_frame(frame: bytes, result: CsumResult) -> bytes:

@@ -76,6 +76,17 @@ package parser_pkg;
 
   localparam int CSUM_W           = 16;
   localparam int CSUM_BYTES       = CSUM_W / 8;
+  localparam int CSUM_ACC_W       = 32;
+  localparam int CSUM_FOLDS       = 2;
+
+  function automatic logic [CSUM_W-1:0] csum_fold(input logic [CSUM_ACC_W-1:0] value);
+    logic [CSUM_ACC_W-1:0] folded;
+    folded = value;
+    for (int i = 0; i < CSUM_FOLDS; i++) begin
+      folded = CSUM_ACC_W'(folded[CSUM_W-1:0]) + CSUM_ACC_W'(folded[CSUM_ACC_W-1:CSUM_W]);
+    end
+    return folded[CSUM_W-1:0];
+  endfunction
 
   localparam logic [IP_LEN_W-1:0]   IPV4_FRAG_MASK = 16'h3FFF;
   localparam logic [IP_LEN_W-1:0]   IPV6_FRAG_MASK = 16'hFFF9;
