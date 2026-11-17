@@ -1,7 +1,6 @@
 module crc_checker
   import pcs_pkg::*;
   import crc32_pkg::*;
-  import pcs_pkg::BYTE_W;
 (
   input  logic           clk,
   input  logic           rst,
