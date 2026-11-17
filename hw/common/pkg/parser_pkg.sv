@@ -114,6 +114,8 @@ package parser_pkg;
   } csum_result_t;
 
   localparam int RX_PARSE_LATENCY = 5;
+  localparam int RX_CSUM_START    = ETH_TYPE_OFF + ETHERTYPE_BYTES;
+  localparam int RX_CSUM_LATENCY  = 3;
 
   typedef struct packed {
     logic                            ip_v4;
