@@ -1,24 +1,23 @@
 from typing import Self
 
-from hw.rx_parser.tb.rx_out_monitor import RxParserMonitor
-from hw.rx_parser.tb.rx_out_transaction import RxParserTransaction
-from hw.rx_parser.tb.rx_parser_model import RxParserModel, describe
-from hw.rx_parser.tb.rx_stream_sequence import RxStreamSequence
-from hw.rx_parser.tb.rx_stream_sequence_item import RxStreamSequenceItem
+from hw.rx_parser.tb.rx_parser_model import RxParserModel
+from hw.rx_parser.tb.rx_parser_monitor import RxParserMonitor
+from hw.rx_parser.tb.rx_parser_transaction import RxParserTransaction
 from hw.tb_utils.generic_driver import GenericDriver
 from hw.tb_utils.generic_test_base import GenericTestBase
+from hw.tb_utils.rx_eth_stream import RxEthStreamItem, RxEthStreamSequence, describe
 from hw.tb_utils.tb_common import initialize_tb
 
 
 class RxParserTestBase(
-    GenericTestBase[GenericDriver, RxStreamSequence, RxParserMonitor, RxParserModel]
+    GenericTestBase[GenericDriver, RxEthStreamSequence, RxParserMonitor, RxParserModel]
 ):
     def __init__(self, dut) -> None:
         super().__init__(
             dut,
             driver=GenericDriver,
-            sequence_item=RxStreamSequenceItem,
-            sequence=RxStreamSequence,
+            sequence_item=RxEthStreamItem,
+            sequence=RxEthStreamSequence,
             monitor=RxParserMonitor,
             output_transaction=RxParserTransaction,
             model=RxParserModel,

@@ -8,8 +8,8 @@ from scapy.packet import Packet
 
 from hw.rx_parser.tb.parser_frames import KNOWN_FRAMES, valid_frame
 from hw.rx_parser.tb.rx_parser_test_base import RxParserTestBase
-from hw.rx_parser.tb.rx_stream_sequence_item import WORD_BYTES
 from hw.tb_utils.net.packets import add_fcs, pad
+from hw.tb_utils.tx_eth_stream import WORD_BYTES
 
 
 def stream(data: bytes) -> bytes:

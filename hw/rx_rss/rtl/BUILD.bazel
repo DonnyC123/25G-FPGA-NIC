@@ -1,0 +1,13 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "rx_rss",
+    srcs = ["rx_rss.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rtl_utils:data_status_pipeline",
+        "//hw/rx_parser/rtl:rx_parser",
+    ],
+)

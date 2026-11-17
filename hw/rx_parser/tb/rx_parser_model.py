@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 from hw.common.pkg import parser_pkg as pkg
 from hw.common.pkg.parser_pkg import rx_parse_meta_t
-from hw.rx_parser.tb.rx_stream_sequence_item import StreamWord
 from hw.tb_utils.generic_model import GenericModel
+from hw.tb_utils.rx_eth_stream import frames
 
 VLAN_TYPES = (pkg.ETHERTYPE_VLAN, pkg.ETHERTYPE_QINQ)
 SKIP_PROTOS = (
@@ -93,27 +93,6 @@ def from_meta(meta: rx_parse_meta_t) -> ParseResult:
         meta.l4_proto,
         ports,
     )
-
-
-def describe(event: tuple) -> str:
-    frame, result = event
-    shown = "None" if frame is None else f"{len(frame)} bytes {frame[:64].hex()}"
-    return f"frame {shown} -> {result}"
-
-
-def frames(items: list) -> list:
-    out: list = []
-    frame = bytearray()
-    for item in items:
-        if not isinstance(item, StreamWord):
-            out.append(item)
-            continue
-        if item.data is not None:
-            frame += item.data
-        if item.last:
-            out.append(bytes(frame))
-            frame = bytearray()
-    return out
 
 
 class RxParserModel(GenericModel):

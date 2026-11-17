@@ -18,10 +18,6 @@ RX_PARSER_DEPS = {
         ":ipv6_ext_walk",
         ":l4_parser",
     ],
-    "rx_rss": [
-        ":rx_parser",
-        "//hw/rtl_utils:data_status_pipeline",
-    ],
 }
 
 [

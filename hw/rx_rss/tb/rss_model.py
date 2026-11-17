@@ -5,9 +5,10 @@ from enum import IntEnum
 
 from hw.common.pkg import parser_pkg as pkg
 from hw.common.pkg.parser_pkg import rss_meta_t
-from hw.rx_parser.tb.rx_parser_model import ParseResult, frames, parse
-from hw.rx_parser.tb.rx_stream_sequence_item import RetaWrite
+from hw.rx_parser.tb.rx_parser_model import ParseResult, parse
+from hw.rx_rss.tb.rx_rss_sequence_item import RetaWrite
 from hw.tb_utils.generic_model import GenericModel
+from hw.tb_utils.rx_eth_stream import frames
 
 DEFAULT_KEY = bytes.fromhex(
     "6d5a56da255b0ec24167253d43a38fb0d0ca2bcbae7b30b477cb2da38030f20c6a42b73bbeac01fa"

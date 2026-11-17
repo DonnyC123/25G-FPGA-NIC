@@ -3,28 +3,28 @@ from typing import Self
 from cocotb.types import LogicArray
 
 from hw.common.pkg import parser_pkg as pkg
-from hw.rx_parser.tb.rss_model import DEFAULT_KEY, RxRssModel
-from hw.rx_parser.tb.rx_out_monitor import RxRssMonitor
-from hw.rx_parser.tb.rx_out_transaction import RxRssTransaction
-from hw.rx_parser.tb.rx_parser_model import describe
-from hw.rx_parser.tb.rx_stream_sequence import RxStreamSequence
-from hw.rx_parser.tb.rx_stream_sequence_item import RxRssSequenceItem
+from hw.rx_rss.tb.rss_model import DEFAULT_KEY, RxRssModel
+from hw.rx_rss.tb.rx_rss_monitor import RxRssMonitor
+from hw.rx_rss.tb.rx_rss_sequence import RxRssSequence
+from hw.rx_rss.tb.rx_rss_sequence_item import RxRssSequenceItem
+from hw.rx_rss.tb.rx_rss_transaction import RxRssTransaction
 from hw.tb_utils.generic_driver import GenericDriver
 from hw.tb_utils.generic_test_base import GenericTestBase
+from hw.tb_utils.rx_eth_stream import describe
 from hw.tb_utils.tb_common import initialize_tb
 
 DEFAULT_RETA = [i % pkg.RSS_MAX_QUEUES for i in range(pkg.RETA_SIZE)]
 
 
 class RxRssTestBase(
-    GenericTestBase[GenericDriver, RxStreamSequence, RxRssMonitor, RxRssModel]
+    GenericTestBase[GenericDriver, RxRssSequence, RxRssMonitor, RxRssModel]
 ):
     def __init__(self, dut) -> None:
         super().__init__(
             dut,
             driver=GenericDriver,
             sequence_item=RxRssSequenceItem,
-            sequence=RxStreamSequence,
+            sequence=RxRssSequence,
             monitor=RxRssMonitor,
             output_transaction=RxRssTransaction,
             model=RxRssModel,

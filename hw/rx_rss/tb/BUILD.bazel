@@ -1,0 +1,40 @@
+load("@rules_cocotb//cocotb:cocotb_test.bzl", "cocotb_test")
+load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "rx_rss_top",
+    srcs = ["rx_rss_top.sv"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rx_rss/rtl:rx_rss",
+    ],
+)
+
+py_library(
+    name = "rx_rss_tb",
+    srcs = [
+        "rss_model.py",
+        "rx_rss_monitor.py",
+        "rx_rss_sequence.py",
+        "rx_rss_sequence_item.py",
+        "rx_rss_test_base.py",
+        "rx_rss_transaction.py",
+    ],
+    deps = [
+        "//hw/common/pkg:parser_pkg_py",
+        "//hw/rx_parser/tb:parser_frames",
+        "//hw/rx_parser/tb:rx_parser_tb",
+        "//hw/tb_utils",
+        "//hw/tb_utils/net",
+        "//tools/cocotb",
+    ],
+)
+
+cocotb_test(
+    name = "rx_rss_test",
+    srcs = ["rx_rss_test.py"],
+    module = ":rx_rss_top",
+    deps = [":rx_rss_tb"],
+)

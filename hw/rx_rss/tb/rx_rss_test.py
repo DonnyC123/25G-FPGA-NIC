@@ -8,8 +8,8 @@ from scapy.packet import Packet
 
 from hw.common.pkg import parser_pkg as pkg
 from hw.rx_parser.tb.parser_frames import KNOWN_FRAMES, valid_frame
-from hw.rx_parser.tb.rss_model import MS_VECTORS, DEFAULT_KEY, toeplitz, vector_input
-from hw.rx_parser.tb.rx_rss_test_base import RxRssTestBase
+from hw.rx_rss.tb.rss_model import DEFAULT_KEY, MS_VECTORS, toeplitz, vector_input
+from hw.rx_rss.tb.rx_rss_test_base import RxRssTestBase
 from hw.tb_utils.net.packets import add_fcs, pad
 
 
