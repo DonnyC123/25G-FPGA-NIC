@@ -1,45 +1,4 @@
-load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_python//python:defs.bzl", "py_binary")
-load(":verible_filelist.bzl", "verible_filelist")
-
-verible_filelist(
-    name = "verible_filelist",
-    deps = [
-        "//top:nic_top",
-        "//hw/rtl_utils",
-        "//hw/rtl_utils/if",
-        "//hw/parser/tb:eth_stage_top",
-        "//hw/parser/tb:pkt_parser_top",
-        "//hw/rx_fifo/tb:rx_fifo_top",
-        "//hw/rx_mac/tb/crc_checker:crc_checker_top",
-        "//hw/rx_top/tb:rx_top_wrapper",
-        "//hw/tx_fifo/tb:tx_fifo_top",
-        "//hw/tx_mac/tb/tx_framer:tx_framer_top",
-        "//hw/tx_pcs/tb/tx_pcs:tx_pcs_top",
-        "//hw/tx_top/tb:tx_top_wrapper",
-        "//hw/tx_csum/tb:async_fifo_top",
-        "//hw/tx_csum/tb:csum_calc_top",
-        "//hw/tx_csum/tb:csum_insert_top",
-    ],
-)
-
-py_binary(
-    name = "update_verible_filelist",
-    srcs = ["update_source_file.py"],
-    args = [
-        "$(rootpath :verible_filelist)",
-        "verible.filelist",
-    ],
-    data = [":verible_filelist"],
-    main = "update_source_file.py",
-)
-
-diff_test(
-    name = "verible_filelist_test",
-    failure_message = "verible.filelist is stale, run: bazel run //tools:update_verible_filelist",
-    file1 = ":verible_filelist",
-    file2 = "//:verible.filelist",
-)
 
 py_binary(
     name = "gen_sv_pkg_py",

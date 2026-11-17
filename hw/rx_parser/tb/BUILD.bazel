@@ -1,0 +1,11 @@
+load("@rules_python//python:defs.bzl", "py_library")
+
+py_library(
+    name = "parser_frames",
+    srcs = ["parser_frames.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hw/common/pkg:parser_pkg_py",
+        "//hw/tb_utils/net",
+    ],
+)

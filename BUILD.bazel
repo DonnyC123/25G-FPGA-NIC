@@ -1,7 +1,5 @@
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 
-exports_files(["verible.filelist"])
-
 string_flag(
     name = "sim",
     build_setting_default = "verilator",

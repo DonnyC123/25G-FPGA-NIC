@@ -17,7 +17,8 @@ py_library(
     name = "tx_top_tb",
     srcs = ["tx_test_base.py"],
     deps = [
-        "//hw/parser/tb:pkt_parser_tb",
+        "//hw/common/pkg:tx_meta_pkg_py",
+        "//hw/rx_parser/tb:parser_frames",
         "//hw/tb_utils",
         "//hw/tb_utils/net",
         "//hw/tx_csum/tb:csum_tb",

@@ -72,10 +72,26 @@ static u32 tx_free_slots(const struct xdma_tx_ring *tx_ring) {
 static void tx_unmap_desc(struct xdma_tx_ring *tx_ring, struct xdma_tx_buffer_info *bi) {
 	if (bi->is_page)
 		dma_unmap_page(tx_ring->dev, bi->dma, bi->dma_len, DMA_TO_DEVICE);
-	else
+	else if (!bi->is_meta)
 		dma_unmap_single(tx_ring->dev, bi->dma, bi->dma_len, DMA_TO_DEVICE);
 
 	memset(bi, 0, sizeof(*bi));
+}
+
+static void tx_fill_meta(struct xdma_tx_ring *tx_ring, u32 idx, const struct sk_buff *skb) {
+	struct eth_tx_meta *meta = &tx_ring->meta_virt[idx];
+
+	memset(meta, 0, sizeof(*meta));
+	if (skb->ip_summed == CHECKSUM_PARTIAL) {
+		meta->flags = ETH_TX_META_CSUM;
+		meta->csum_start = cpu_to_le16(skb_checksum_start_offset(skb));
+		meta->csum_offset = cpu_to_le16(skb->csum_offset);
+	}
+	meta->frame_len = cpu_to_le16(skb->len);
+
+	tx_ring->sw_ring[idx].is_meta = true;
+	tx_xdma_desc_set(tx_ring->hw_desc_ring_virt + idx, tx_ring->meta_phys + (dma_addr_t)idx * sizeof(*meta),
+			 sizeof(*meta), false);
 }
 
 static void tx_fill_desc(struct xdma_tx_ring *tx_ring, u32 idx, dma_addr_t dma, u32 len, bool is_page, bool eop) {
@@ -88,14 +104,18 @@ static void tx_fill_desc(struct xdma_tx_ring *tx_ring, u32 idx, dma_addr_t dma, 
 	tx_xdma_desc_set(tx_ring->hw_desc_ring_virt + idx, dma, len, eop);
 }
 
-// Maps the head and each fragment to its own descriptor. Returns the number
-// of descriptors used, or a negative errno with nothing left mapped.
+// Maps the metadata, the head and each fragment to its own descriptor. Returns
+// the number of descriptors used, or a negative errno with nothing left mapped.
 static int tx_map_skb(struct xdma_tx_ring *tx_ring, struct sk_buff *skb) {
 	u32 nr_frags = skb_shinfo(skb)->nr_frags;
 	u32 headlen = skb_headlen(skb);
 	u32 idx = tx_ring->driver_pi;
 	dma_addr_t dma;
 	int used = 0;
+
+	tx_fill_meta(tx_ring, idx, skb);
+	idx = (idx + 1) % tx_ring->count;
+	used++;
 
 	if (headlen) {
 		dma = dma_map_single(tx_ring->dev, skb->data, headlen, DMA_TO_DEVICE);
@@ -277,7 +297,7 @@ static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_de
 
 	spin_lock_bh(&tx_ring->lock);
 
-	if (unlikely(tx_free_slots(tx_ring) < skb_shinfo(skb)->nr_frags + 1)) {
+	if (unlikely(tx_free_slots(tx_ring) < skb_shinfo(skb)->nr_frags + 2)) {
 		netif_stop_queue(net_dev);
 		spin_unlock_bh(&tx_ring->lock);
 		return NETDEV_TX_BUSY;

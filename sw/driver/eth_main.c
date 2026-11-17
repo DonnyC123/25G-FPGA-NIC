@@ -180,6 +180,9 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id) {
 
 	net_dev->netdev_ops = &netdev_ops;
 	net_dev->watchdog_timeo = WATCHDOG_PERIOD;
+	net_dev->hw_features |= TX_CSUM_FEATURES;
+	net_dev->features |= TX_CSUM_FEATURES;
+	net_dev->vlan_features |= TX_CSUM_FEATURES;
 
 	eth_hw_addr_set(net_dev, my_mac_addr);
 

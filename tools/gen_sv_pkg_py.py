@@ -91,21 +91,43 @@ def generate(sv_file: Path, package_name: str) -> str:
         '"""',
         "",
         "from dataclasses import dataclass",
+        "from typing import ClassVar, Self",
         "",
     ]
 
     for name, value, width, sv_type in params:
         lines.append(f"{name} = {_format_int(value, width, sv_type)}  # {sv_type}")
 
+    if structs:
+        lines += [
+            "",
+            "",
+            "def _unpack_fields(widths: tuple[tuple[str, int], ...], value: int) -> dict[str, int]:",
+            "    fields = {}",
+            "    shift = sum(width for _, width in widths)",
+            "    for name, width in widths:",
+            "        shift -= width",
+            "        fields[name] = (value >> shift) & ((1 << width) - 1)",
+            "    return fields",
+        ]
+
     for struct_name, fields in structs:
         lines.append("")
         lines.append("")
         lines.append("@dataclass")
         lines.append(f"class {struct_name}:")
-        if not fields:
-            lines.append("    pass")
         for field_name, field_width in fields:
-            lines.append(f"    {field_name}: int  # [{field_width - 1}:0]")
+            lines.append(f"    {field_name}: int = 0  # [{field_width - 1}:0]")
+        lines.append("")
+        lines.append("    WIDTHS: ClassVar[tuple[tuple[str, int], ...]] = (")
+        for field_name, field_width in fields:
+            lines.append(f'        ("{field_name}", {field_width}),')
+        lines.append("    )")
+        lines.append(f"    WIDTH: ClassVar[int] = {sum(width for _, width in fields)}")
+        lines.append("")
+        lines.append("    @classmethod")
+        lines.append("    def unpack(cls, value: int) -> Self:")
+        lines.append("        return cls(**_unpack_fields(cls.WIDTHS, value))")
 
     return "\n".join(lines) + "\n"
 

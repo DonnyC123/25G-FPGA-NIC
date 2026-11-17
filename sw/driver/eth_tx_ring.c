@@ -138,6 +138,7 @@ int tx_ring_init(struct net_device_priv *xndev) {
 	size_t hw_desc_ring_size;
 	size_t hw_wb_compl_size;
 	size_t sw_ring_size;
+	size_t meta_size;
 
 	tx_ring = kzalloc(sizeof(*tx_ring), GFP_KERNEL);
 	if (!tx_ring) {
@@ -184,9 +185,18 @@ int tx_ring_init(struct net_device_priv *xndev) {
 		goto err_sw_ring;
 	}
 
+	meta_size = sizeof(*tx_ring->meta_virt) * tx_ring->count;
+	tx_ring->meta_virt = dma_alloc_coherent(tx_ring->dev, meta_size, &tx_ring->meta_phys, GFP_KERNEL);
+	if (!tx_ring->meta_virt) {
+		pr_err("Failed to allocate TX metadata (size=%zu)\n", meta_size);
+		goto err_meta;
+	}
+
 	netif_napi_add(tx_ring->net_dev, &tx_ring->napi, tx_napi_poll);
 	return 0;
 
+err_meta:
+	kfree(tx_ring->sw_ring);
 err_sw_ring:
 	dma_free_coherent(tx_ring->dev, hw_wb_compl_size, tx_ring->hw_wb_compl_virt, tx_ring->hw_wb_compl_phys);
 err_wb_compl:
@@ -210,6 +220,9 @@ void tx_ring_free(struct net_device_priv *xndev) {
 	h2c_engine = tx_ring->h2c_engine;
 
 	netif_napi_del(&tx_ring->napi);
+
+	dma_free_coherent(tx_ring->dev, sizeof(*tx_ring->meta_virt) * tx_ring->count, tx_ring->meta_virt,
+			  tx_ring->meta_phys);
 
 	kfree(tx_ring->sw_ring);
 

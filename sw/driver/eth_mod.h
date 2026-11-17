@@ -30,10 +30,24 @@
 #define WATCHDOG_PERIOD	   (5 * HZ)
 #define RX_BUFFER_LEN	   2048
 #define RX_HEADROOM	   NET_SKB_PAD
-#define TX_DESC_NEEDED	   (MAX_SKB_FRAGS + 1)
+#define TX_DESC_NEEDED	   (MAX_SKB_FRAGS + 2)
 #define SGDMA_TIMEOUT	   50
 #define XDMA_CREDIT_MAX	   1023
 #define XDMA_WB_COUNT_MASK 0xFFFFFF
+#define TX_CSUM_FEATURES   NETIF_F_HW_CSUM
+#define ETH_TX_META_CSUM   BIT(0)
+
+// Sent as the first descriptor of every TX frame; layout matches hw/common/pkg/tx_meta_pkg.sv.
+struct eth_tx_meta {
+	u8 flags;
+	u8 rsvd0;
+	__le16 csum_start;
+	__le16 csum_offset;
+	__le16 frame_len;
+	u8 rsvd[24];
+} __packed;
+
+static_assert(sizeof(struct eth_tx_meta) == 32);
 
 struct xdma_rx_buffer_info {
 	// The page_pool page posted to the device.
@@ -51,6 +65,8 @@ struct xdma_tx_buffer_info {
 	u32 dma_len;
 	// Mapped with skb_frag_dma_map rather than dma_map_single.
 	bool is_page;
+	// Points at the ring's coherent metadata array; nothing to unmap.
+	bool is_meta;
 };
 
 struct xdma_rx_ring {
@@ -104,6 +120,10 @@ struct xdma_tx_ring {
 
 	// Pointer to our parallel software descriptor ring.
 	struct xdma_tx_buffer_info *sw_ring;
+
+	// One metadata slot per descriptor, indexed like the descriptor ring.
+	struct eth_tx_meta *meta_virt;
+	dma_addr_t meta_phys;
 
 	// Total number of descriptors in the ring (e.g., 256).
 	u32 count;

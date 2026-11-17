@@ -20,13 +20,12 @@ module csum_insert
                                                               input logic [OFF_W-1:0] word_pos,
                                                               input logic en, input logic [OFF_W-1:0] field_pos,
                                                               input logic [CSUM_W-1:0] csum);
-    logic [LANE_W-1:0] lane;
+    logic [OFF_W-1:0] byte_pos;
     patch = data;
-    lane  = field_pos[LANE_W-1:0];
-    if (en && field_pos[OFF_W-1:LANE_W] == word_pos[OFF_W-1:LANE_W]) begin
-      patch[lane] = csum[CSUM_W-1-:BYTE_W];
-      if (lane != '1) begin
-        patch[lane+1'b1] = csum[BYTE_W-1:0];
+    for (int k = 0; k < CSUM_BYTES; k++) begin
+      byte_pos = field_pos + OFF_W'(k);
+      if (en && byte_pos[OFF_W-1:LANE_W] == word_pos[OFF_W-1:LANE_W]) begin
+        patch[byte_pos[LANE_W-1:0]] = csum[CSUM_W-1-BYTE_W*k-:BYTE_W];
       end
     end
   endfunction

@@ -1,13 +1,12 @@
 module tx_top
   import pcs_pkg::*;
-  import parser_pkg::parse_meta_t;
   import parser_pkg::csum_result_t;
+  import tx_meta_pkg::tx_meta_t;
+  import tx_meta_pkg::TX_META_BYTES;
 #(
   parameter int FIFO_DEPTH       = 64,
   parameter int MIN_FRAME_BYTES  = 60,
-  parameter int SCRAMBLER_BYPASS = 0,
-  parameter int OPT_STAGES       = 4,
-  parameter int EXT_STAGES       = 2
+  parameter int SCRAMBLER_BYPASS = 0
 ) (
   input  logic                     axi_clk,
   input  logic                     axi_rst,
@@ -22,40 +21,43 @@ module tx_top
 
   localparam int CSUM_FIFO_DEPTH = 2 * FIFO_DEPTH;
 
-  axi_stream_if #(.DATA_W(s_axi.DATA_W)) parsed_axi ();
+  axi_stream_if #(.DATA_W(s_axi.DATA_W)) frame_axi ();
 
   tx_eth_stream_if #(.DATA_W(PCS_PAYLOAD_W)) fifo_stream ();
   tx_eth_stream_if #(.DATA_W(PCS_PAYLOAD_W)) csum_stream ();
 
-  parse_meta_t  parse_meta;
+  tx_meta_t                 frame_meta;
+  logic [TX_META_BYTES-1:0] frame_csum_mask;
 
-  csum_result_t csum_result;
-  logic         csum_result_valid;
-  csum_result_t fifo_result;
-  logic         fifo_result_valid;
-  logic         fifo_result_ready;
+  csum_result_t             csum_result;
+  logic                     csum_result_valid;
+  csum_result_t             fifo_result;
+  logic                     fifo_result_valid;
+  logic                     fifo_result_ready;
+  csum_result_t             skid_result;
+  logic                     skid_result_valid;
+  logic                     skid_result_ready;
 
-  pkt_parser #(
-      .OPT_STAGES(OPT_STAGES),
-      .EXT_STAGES(EXT_STAGES)
-  ) pkt_parser_inst (
+  tx_meta tx_meta_inst (
       .clk   (axi_clk),
       .rst   (axi_rst),
       .s_axi (s_axi),
-      .m_axi (parsed_axi),
-      .meta_o(parse_meta)
+      .m_axi (frame_axi),
+      .meta_o     (frame_meta),
+      .csum_mask_o(frame_csum_mask)
   );
 
-  csum_calc #(
+  csum_sum #(
       .DATA_W(s_axi.DATA_W)
-  ) csum_calc_inst (
+  ) csum_sum_inst (
       .clk           (axi_clk),
       .rst           (axi_rst),
-      .data_i        (parsed_axi.data),
-      .mask_i        (parsed_axi.mask),
-      .last_i        (parsed_axi.last),
-      .accept_i      (parsed_axi.valid && parsed_axi.ready),
-      .meta_i        (parse_meta),
+      .data_i        (frame_axi.data),
+      .mask_i        (frame_axi.mask),
+      .csum_mask_i   (frame_csum_mask),
+      .last_i        (frame_axi.last),
+      .accept_i      (frame_axi.valid && frame_axi.ready),
+      .meta_i        (frame_meta),
       .result_o      (csum_result),
       .result_valid_o(csum_result_valid)
   );
@@ -76,6 +78,19 @@ module tx_top
       .ready_i(fifo_result_ready)
   );
 
+  skid_buffer #(
+      .DATA_W($bits(csum_result_t))
+  ) csum_skid_inst (
+      .clk    (eth_clk),
+      .rst    (eth_rst),
+      .data_i (fifo_result),
+      .valid_i(fifo_result_valid),
+      .ready_o(fifo_result_ready),
+      .data_o (skid_result),
+      .valid_o(skid_result_valid),
+      .ready_i(skid_result_ready)
+  );
+
   tx_fifo_ctrl #(
       .FIFO_DEPTH(FIFO_DEPTH)
   ) tx_fifo_ctrl_inst (
@@ -83,7 +98,7 @@ module tx_top
       .s_rst      (axi_rst),
       .m_clk      (eth_clk),
       .m_rst      (eth_rst),
-      .s_axi      (parsed_axi),
+      .s_axi      (frame_axi),
       .tx_stream_o(fifo_stream)
   );
 
@@ -91,9 +106,9 @@ module tx_top
       .clk           (eth_clk),
       .rst           (eth_rst),
       .s_stream      (fifo_stream),
-      .result_i      (fifo_result),
-      .result_valid_i(fifo_result_valid),
-      .result_ready_o(fifo_result_ready),
+      .result_i      (skid_result),
+      .result_valid_i(skid_result_valid),
+      .result_ready_o(skid_result_ready),
       .m_stream      (csum_stream)
   );
 
