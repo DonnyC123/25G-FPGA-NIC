@@ -1,4 +1,6 @@
+load("@rules_cocotb//cocotb:cocotb_test.bzl", "cocotb_test")
 load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
 
 py_library(
     name = "parser_frames",
@@ -8,4 +10,60 @@ py_library(
         "//hw/common/pkg:parser_pkg_py",
         "//hw/tb_utils/net",
     ],
+)
+
+verilog_library(
+    name = "rx_parser_top",
+    srcs = ["rx_parser_top.sv"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rx_parser/rtl:rx_parser",
+    ],
+)
+
+verilog_library(
+    name = "rx_rss_top",
+    srcs = ["rx_rss_top.sv"],
+    deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rx_parser/rtl:rx_rss",
+    ],
+)
+
+py_library(
+    name = "rx_parser_tb",
+    srcs = [
+        "rss_model.py",
+        "rx_out_monitor.py",
+        "rx_out_transaction.py",
+        "rx_parser_model.py",
+        "rx_parser_test_base.py",
+        "rx_rss_test_base.py",
+        "rx_stream_sequence.py",
+        "rx_stream_sequence_item.py",
+    ],
+    deps = [
+        ":parser_frames",
+        "//hw/common/pkg:parser_pkg_py",
+        "//hw/common/pkg:pcs_pkg_py",
+        "//hw/tb_utils",
+        "//hw/tb_utils/net",
+        "//tools/cocotb",
+    ],
+)
+
+cocotb_test(
+    name = "rx_parser_test",
+    srcs = ["rx_parser_test.py"],
+    module = ":rx_parser_top",
+    deps = [":rx_parser_tb"],
+)
+
+cocotb_test(
+    name = "rx_rss_test",
+    srcs = ["rx_rss_test.py"],
+    module = ":rx_rss_top",
+    deps = [":rx_parser_tb"],
 )

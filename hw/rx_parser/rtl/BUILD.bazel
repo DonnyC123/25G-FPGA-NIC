@@ -1,0 +1,35 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+RX_PARSER_PKGS = [
+    "//hw/common/pkg:parser_pkg",
+    "//hw/common/pkg:pcs_pkg",
+]
+
+RX_PARSER_DEPS = {
+    "eth_parser": [],
+    "ipv4_parser": [],
+    "ipv6_parser": [],
+    "ipv6_ext_walk": [],
+    "l4_parser": [],
+    "rx_parser": [
+        ":eth_parser",
+        ":ipv4_parser",
+        ":ipv6_parser",
+        ":ipv6_ext_walk",
+        ":l4_parser",
+    ],
+    "rx_rss": [
+        ":rx_parser",
+        "//hw/rtl_utils:data_status_pipeline",
+    ],
+}
+
+[
+    verilog_library(
+        name = name,
+        srcs = [name + ".sv"],
+        visibility = ["//visibility:public"],
+        deps = RX_PARSER_PKGS + deps,
+    )
+    for name, deps in RX_PARSER_DEPS.items()
+]

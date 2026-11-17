@@ -7,6 +7,30 @@ package parser_pkg;
   localparam int MAX_VLANS           = 2;
   localparam int ETHERTYPE_POSITIONS = MAX_VLANS + 1;
   localparam int VLAN_COUNT_W        = $clog2(MAX_VLANS + 1);
+  localparam int FCS_BYTES           = 4;
+
+  localparam logic [OFF_W-1:0] ETHERTYPE_POS_0 = OFF_W'(ETH_TYPE_OFF);
+  localparam logic [OFF_W-1:0] ETHERTYPE_POS_1 = OFF_W'(ETH_TYPE_OFF + VLAN_TAG_BYTES);
+  localparam logic [OFF_W-1:0] ETHERTYPE_POS_2 = OFF_W'(ETH_TYPE_OFF + 2 * VLAN_TAG_BYTES);
+
+  localparam logic [OFF_W-1:0] IP_POS_0        = OFF_W'(ETH_TYPE_OFF + ETHERTYPE_BYTES);
+  localparam logic [OFF_W-1:0] IP_POS_1        = OFF_W'(ETH_TYPE_OFF + VLAN_TAG_BYTES + ETHERTYPE_BYTES);
+  localparam logic [OFF_W-1:0] IP_POS_2        = OFF_W'(ETH_TYPE_OFF + 2 * VLAN_TAG_BYTES + ETHERTYPE_BYTES);
+
+  function automatic logic [OFF_W-1:0] ip_pos(input logic [VLAN_COUNT_W-1:0] vlan_count);
+    case (int'(vlan_count))
+      0:       return IP_POS_0;
+      1:       return IP_POS_1;
+      default: return IP_POS_2;
+    endcase
+  endfunction
+
+  function automatic logic ip_at(input logic [OFF_W-1:0] pos, input logic [VLAN_COUNT_W-1:0] vlan_count,
+                                 input logic [OFF_W-1:0] off);
+    return (int'(vlan_count) == 0 && pos == IP_POS_0 + off) ||
+           (int'(vlan_count) == 1 && pos == IP_POS_1 + off) ||
+           (int'(vlan_count) == 2 && pos == IP_POS_2 + off);
+  endfunction
 
   localparam logic [ETHERTYPE_W-1:0] ETHERTYPE_MIN  = 16'h0600;
   localparam logic [ETHERTYPE_W-1:0] ETHERTYPE_VLAN = 16'h8100;
@@ -25,6 +49,7 @@ package parser_pkg;
   localparam int IPV4_ADDR_OFF    = 12;
   localparam int IPV4_MIN_IHL     = 5;
   localparam int IPV4_IHL_SHIFT   = 2;
+  localparam int IPV4_IHL_W       = 4;
   localparam int IPV4_HDR_BYTES   = 20;
 
   localparam int IPV6_VERSION     = 6;
@@ -46,6 +71,8 @@ package parser_pkg;
 
   localparam int PORT_W           = 16;
   localparam int PORTS_BYTES      = 2 * PORT_W / 8;
+  localparam int L4_SRC_PORT_OFF  = 0;
+  localparam int L4_DST_PORT_OFF  = 2;
 
   localparam int CSUM_W           = 16;
   localparam int CSUM_BYTES       = CSUM_W / 8;
@@ -74,5 +101,43 @@ package parser_pkg;
     logic [OFF_W-1:0]    l4_pos;
     logic [CSUM_W-1:0]   l4_csum;
   } csum_result_t;
+
+  localparam int RX_PARSE_LATENCY = 5;
+
+  typedef struct packed {
+    logic                            ip_v4;
+    logic                            ip_v6;
+    logic                            ports_valid;
+    logic [IP_PROTO_W-1:0]           l4_proto;
+    logic [IPV6_ADDR_LEN*8-1:0]      src_addr;
+    logic [IPV6_ADDR_LEN*8-1:0]      dst_addr;
+    logic [PORT_W-1:0]               src_port;
+    logic [PORT_W-1:0]               dst_port;
+  } rx_parse_meta_t;
+
+  localparam int RSS_KEY_BYTES    = 40;
+  localparam int RSS_KEY_W        = RSS_KEY_BYTES * 8;
+  localparam int RSS_HASH_W       = 32;
+  localparam int RSS_TUPLE_BYTES  = 2 * IPV6_ADDR_LEN + PORTS_BYTES;
+  localparam int RSS_TUPLE_W      = RSS_TUPLE_BYTES * 8;
+  localparam int RSS_HASH_GROUPS  = 6;
+  localparam int RSS_MAX_QUEUES   = 4;
+  localparam int RSS_QUEUE_W      = $clog2(RSS_MAX_QUEUES);
+  localparam int RETA_SIZE        = 64;
+  localparam int RETA_ADDR_W      = $clog2(RETA_SIZE);
+  localparam int RSS_STAGES       = 4;
+  localparam int RX_RSS_LATENCY   = RX_PARSE_LATENCY + RSS_STAGES;
+
+  typedef enum logic [1:0] {
+    RSS_HASH_NONE,
+    RSS_HASH_L3,
+    RSS_HASH_L4
+  } rss_hash_type_t;
+
+  typedef struct packed {
+    rss_hash_type_t           hash_type;
+    logic [RSS_HASH_W-1:0]    hash;
+    logic [RSS_QUEUE_W-1:0]   rx_queue;
+  } rss_meta_t;
 
 endpackage

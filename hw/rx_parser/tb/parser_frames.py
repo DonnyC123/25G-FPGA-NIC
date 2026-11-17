@@ -402,6 +402,62 @@ def ipv6_packet() -> bytes:
     return bytes(hdr) + body
 
 
+OTHER_ETHERTYPES = [0x0806, 0x88CC, 0x8847, 0x88F7]
+
+
+def valid_ipv4_packet() -> bytes:
+    proto = random.choice(
+        [IP_PROTO_TCP] * 3 + [IP_PROTO_UDP] * 3 + [1, random.getrandbits(8)]
+    )
+    opts = random_options() if random.random() < 0.4 else b""
+    hdr = bytearray(random.randbytes(20) + opts)
+    hdr[0] = (4 << 4) | (5 + len(opts) // 4)
+    frag = random.choice([0, 0, 0x4000, 0x2000, 0x0001, random.getrandbits(16)])
+    hdr[6:8] = frag.to_bytes(2, "big")
+    hdr[9] = proto
+    return bytes(hdr) + l4_bytes(proto)
+
+
+def valid_ipv6_packet() -> bytes:
+    exts = [
+        random.choice(
+            [
+                IP_PROTO_HOPOPT,
+                IP_PROTO_ROUTING,
+                IP_PROTO_FRAGMENT,
+                IP_PROTO_AH,
+                IP_PROTO_DSTOPTS,
+            ]
+        )
+        for _ in range(random.choice([0, 0, 1, 2, 3, random.randint(4, 8)]))
+    ]
+    proto = random.choice([IP_PROTO_TCP] * 3 + [IP_PROTO_UDP] * 3 + [50, 59])
+    chain = exts + [proto]
+    body = b"".join(
+        ext_header(chain[i], chain[i + 1]) for i in range(len(exts))
+    ) + l4_bytes(proto)
+    hdr = bytearray(random.randbytes(40))
+    hdr[0] = (6 << 4) | (hdr[0] & 0xF)
+    hdr[4:6] = min(len(body), 0xFFFF).to_bytes(2, "big")
+    hdr[6] = chain[0]
+    return bytes(hdr) + body
+
+
+def valid_frame() -> bytes:
+    vlans = random.choice([0, 0, 1, 2, 3])
+    match random.choice(["v4", "v4", "v6", "v6", "other"]):
+        case "v4":
+            frame = eth_header(vlans, ETHERTYPE_IPV4) + valid_ipv4_packet()
+        case "v6":
+            frame = eth_header(vlans, ETHERTYPE_IPV6) + valid_ipv6_packet()
+        case _:
+            ethertype = random.choice(OTHER_ETHERTYPES)
+            frame = eth_header(vlans, ethertype) + random.randbytes(
+                random.randint(0, 200)
+            )
+    return pad(frame)[:1514]
+
+
 def random_frame() -> bytes:
     vlans = random.choice([0, 0, 1, 2, 3])
     match random.choice(["v4", "v4", "v6", "v6", "other"]):
