@@ -1,7 +1,6 @@
 module tx_framer_ctrl
   import pcs_pkg::*;
   import crc32_pkg::*;
-  import pcs_pkg::BYTE_W;
 #(
   parameter  int MIN_FRAME_BYTES = 60,
   localparam int POS_W           = LAST_BYTES_W + 1
@@ -82,11 +81,6 @@ module tx_framer_ctrl
   always_comb begin
     payload    = tx_stream_i.data;
     word_bytes = POS_W'(PCS_PAYLOAD_BYTES);
-    for (int b = 0; b < PCS_PAYLOAD_BYTES; b++) begin
-      if (tx_stream_i.last && tx_stream_i.LAST_BYTES_W'(b) >= tx_stream_i.last_bytes) begin
-        payload[b*BYTE_W +: BYTE_W] = '0;
-      end
-    end
     if (tx_stream_i.last) begin
       word_bytes = POS_W'(tx_stream_i.last_bytes);
     end

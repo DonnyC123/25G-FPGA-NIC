@@ -71,6 +71,7 @@ set_false_path -to [get_ports {sfp_1_led led_g}]
 # rx_lock_watchdog resynchronizes rx_locked and rx_reset_done onto freerun_clk.
 set_false_path -to [get_cells -hierarchical -filter {NAME =~ *status_sync_inst/data_shift_reg_q_reg*}]
 set_property ASYNC_REG TRUE [get_cells -hierarchical -filter {NAME =~ *status_sync_inst/data_shift_reg_q_reg*}]
+set_false_path -to [get_pins -of_objects [get_cells -hierarchical -filter {NAME =~ *rst_sync_inst/sync_q_reg*}] -filter {REF_PIN_NAME == PRE}]
 
 # ---------------------------------------------------------------------------
 # Debug (DEBUG_EN = 1)

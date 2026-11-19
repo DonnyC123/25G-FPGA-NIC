@@ -26,7 +26,7 @@ class AxiStreamItem(AbstractTransaction):
     @classmethod
     def from_bytes(cls, data: bytes, last: bool = False) -> Self:
         return cls(
-            to_logic(data, AXI_DATA_W),
+            to_logic(data + random.randbytes(AXI_WORD_BYTES - len(data)), AXI_DATA_W),
             mask_of(len(data), AXI_WORD_BYTES),
             Logic(1),
             Logic(last),

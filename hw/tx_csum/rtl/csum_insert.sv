@@ -44,7 +44,7 @@ module csum_insert
 
   always_comb begin
     advance         = !valid_q || m_stream.ready;
-    s_stream.ready  = !rst && advance && (!first_q || result_valid_i);
+    s_stream.ready  = advance && (!first_q || result_valid_i);
     accept          = s_stream.valid && s_stream.ready;
     result_ready_o  = accept && first_q;
 
@@ -55,6 +55,11 @@ module csum_insert
     csum_lo_in_word = frame_result.l4_en && csum_lo_pos[TX_OFF_W-1:LANE_W] == pos_q[TX_OFF_W-1:LANE_W];
 
     data_out        = {>>{s_stream.data}};
+    for (int b = 0; b < DATA_BYTES; b++) begin
+      if (s_stream.last && (LAST_BYTES_W'(b) >= s_stream.last_bytes)) begin
+        data_out[b] = '0;
+      end
+    end
     if (csum_hi_in_word) begin
       data_out[csum_hi_pos[LANE_W-1:0]] = frame_result.l4_csum[CSUM_W-1-:BYTE_W];
     end

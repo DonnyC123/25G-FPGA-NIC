@@ -35,7 +35,7 @@ class TxEthStreamItem(AbstractTransaction):
     @classmethod
     def from_bytes(cls, data: bytes, last: bool = False) -> Self:
         last_bytes = len(data) if last else 0
-        filler = random.randbytes(WORD_BYTES - len(data))
+        filler = bytes(WORD_BYTES - len(data))
         return cls(
             to_logic(data + filler, DATA_W),
             LogicArray.from_unsigned(last_bytes, LAST_BYTES_W),
