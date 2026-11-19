@@ -6,7 +6,7 @@ localparam values (which silently drifts, e.g. alignment_finder_sequence.py
 once had CTRL_HDR/DATA_HDR backwards relative to hw/common/pkg/pcs_pkg.sv).
 
 Usage:
-    python tools/gen_sv_pkg_py.py <sv_file> <package_name> -o <output.py>
+    python tools/gen_sv_pkg_py.py <sv_file> <package_name> -o <output.py> [--deps <imported_pkg.sv> ...]
 
 Regenerate whenever the source .sv package changes — this is not run
 automatically as part of the build.
@@ -59,10 +59,15 @@ def _gather_structs(pkg) -> list[tuple[str, list[tuple[str, int]]]]:
     return structs
 
 
-def generate(sv_file: Path, package_name: str) -> str:
-    tree = pyslang.syntax.SyntaxTree.fromFile(str(sv_file))
+def generate(sv_file: Path, package_name: str, deps: list[Path]) -> str:
     compilation = pyslang.ast.Compilation()
-    compilation.addSyntaxTree(tree)
+    seen = {sv_file.resolve()}
+    compilation.addSyntaxTree(pyslang.syntax.SyntaxTree.fromFile(str(sv_file)))
+    for dep in deps:
+        if dep.resolve() in seen:
+            continue
+        seen.add(dep.resolve())
+        compilation.addSyntaxTree(pyslang.syntax.SyntaxTree.fromFile(str(dep)))
 
     diags = compilation.getAllDiagnostics()
     fatal = [d for d in diags if d.isError()]
@@ -137,9 +142,10 @@ def main() -> None:
     parser.add_argument("sv_file", type=Path)
     parser.add_argument("package_name")
     parser.add_argument("-o", "--output", type=Path, required=True)
+    parser.add_argument("--deps", type=Path, nargs="*", default=[])
     args = parser.parse_args()
 
-    output_text = generate(args.sv_file, args.package_name)
+    output_text = generate(args.sv_file, args.package_name, args.deps)
     args.output.write_text(output_text)
     print(f"wrote {args.output}")
 

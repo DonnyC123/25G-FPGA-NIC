@@ -1,14 +1,13 @@
 module tx_meta
   import tx_meta_pkg::*;
-  import parser_pkg::OFF_W;
   import pcs_pkg::BYTE_W;
 (
-  input  logic                     clk,
-  input  logic                     rst,
-         axi_stream_if.slave       s_axi,
-         axi_stream_if.master      m_axi,
-  output tx_meta_t                 meta_o,
-  output logic [TX_META_BYTES-1:0] csum_mask_o
+  input  logic                                    clk,
+  input  logic                                    rst,
+         axi_stream_if.slave                      s_axi,
+         axi_stream_if.master                     m_axi,
+  output tx_meta_t                                meta_o,
+  output logic                [TX_META_BYTES-1:0] csum_mask_o
 );
 
   localparam int DATA_W = s_axi.DATA_W;
@@ -19,41 +18,42 @@ module tx_meta
     $error("s_axi.MASK_W (%0d) must equal TX_META_BYTES (%0d)", MASK_W, TX_META_BYTES);
   end
 
-  logic [MASK_W-1:0][BYTE_W-1:0] in_bytes;
-  logic                          advance;
-  logic                          accept;
+  logic     [MASK_W-1:0][BYTE_W-1:0] data_in;
+  logic                              advance;
+  logic                              accept;
 
-  logic                          first_d;
-  logic                          first_q;
-  tx_meta_t                      frame_meta_d;
-  tx_meta_t                      frame_meta_q;
-  logic [OFF_W-1:0]              pos_d;
-  logic [OFF_W-1:0]              pos_q;
-  logic [OFF_W-1:0]              start;
-  logic [LANE_W-1:0]             lo;
-  logic [MASK_W-1:0]             csum_range;
+  logic                              first_d;
+  logic                              first_q;
+  tx_meta_t                          frame_meta_d;
+  tx_meta_t                          frame_meta_q;
+  logic     [TX_OFF_W-1:0]           pos_d;
+  logic     [TX_OFF_W-1:0]           pos_q;
+  logic     [TX_OFF_W-1:0]           start;
+  logic     [LANE_W-1:0]             lo;
+  logic     [MASK_W-1:0]             csum_range;
 
-  logic [DATA_W-1:0]             data_d;
-  logic [DATA_W-1:0]             data_q;
-  logic [MASK_W-1:0]             mask_d;
-  logic [MASK_W-1:0]             mask_q;
-  logic                          last_d;
-  logic                          last_q;
-  logic                          valid_d;
-  logic                          valid_q;
-  tx_meta_t                      meta_d;
-  tx_meta_t                      meta_q;
-  logic [MASK_W-1:0]             csum_mask_d;
-  logic [MASK_W-1:0]             csum_mask_q;
+  logic     [DATA_W-1:0]             data_d;
+  logic     [DATA_W-1:0]             data_q;
+  logic     [MASK_W-1:0]             mask_d;
+  logic     [MASK_W-1:0]             mask_q;
+  logic                              last_d;
+  logic                              last_q;
+  logic                              valid_d;
+  logic                              valid_q;
+  tx_meta_t                          meta_d;
+  tx_meta_t                          meta_q;
+  logic     [MASK_W-1:0]             csum_mask_d;
+  logic     [MASK_W-1:0]             csum_mask_q;
 
   always_comb begin
-    in_bytes    = s_axi.data;
+    data_in     = {>>{s_axi.data}};
     advance     = !valid_q || m_axi.ready;
-    s_axi.ready = !rst && (first_q || advance);
+    s_axi.ready = first_q || advance;
     accept      = s_axi.valid && s_axi.ready;
 
-    start = OFF_W'(frame_meta_q.csum_start);
-    lo    = start <= pos_q ? '0 : start >= pos_q + OFF_W'(MASK_W) ? LANE_W'(MASK_W) : LANE_W'(start - pos_q);
+    start       = TX_OFF_W'(frame_meta_q.csum_start);
+    lo          = start <= pos_q ? '0 : start >= pos_q + TX_OFF_W'(MASK_W) ? LANE_W'(MASK_W) : LANE_W'(start - pos_q);
+
     for (int b = 0; b < MASK_W; b++) begin
       csum_range[b] = LANE_W'(b) >= lo;
     end
@@ -75,12 +75,12 @@ module tx_meta
     if (accept) begin
       first_d = s_axi.last;
       if (first_q) begin
-        frame_meta_d.csum        = in_bytes[TX_META_FLAGS_OFF][TX_META_CSUM_BIT];
-        frame_meta_d.csum_start  = {in_bytes[TX_META_START_OFF+1], in_bytes[TX_META_START_OFF]};
-        frame_meta_d.csum_offset = {in_bytes[TX_META_OFFSET_OFF+1], in_bytes[TX_META_OFFSET_OFF]};
-        frame_meta_d.frame_len   = {in_bytes[TX_META_LEN_OFF+1], in_bytes[TX_META_LEN_OFF]};
+        frame_meta_d.csum        = data_in[TX_META_FLAGS_OFF][TX_META_CSUM_BIT];
+        frame_meta_d.csum_start  = {data_in[TX_META_START_OFF+1], data_in[TX_META_START_OFF]};
+        frame_meta_d.csum_offset = {data_in[TX_META_OFFSET_OFF+1], data_in[TX_META_OFFSET_OFF]};
+        frame_meta_d.frame_len   = {data_in[TX_META_LEN_OFF+1], data_in[TX_META_LEN_OFF]};
       end else begin
-        pos_d       = s_axi.last ? '0 : pos_q + OFF_W'(MASK_W);
+        pos_d       = s_axi.last ? '0 : pos_q + TX_OFF_W'(MASK_W);
         data_d      = s_axi.data;
         mask_d      = s_axi.mask;
         last_d      = s_axi.last;
@@ -92,23 +92,26 @@ module tx_meta
 
   always_ff @(posedge clk) begin
     if (rst) begin
-      first_q <= 1'b1;
-      pos_q   <= '0;
-      valid_q <= 1'b0;
+      first_q      <= 1'b1;
+      pos_q        <= '0;
+      valid_q      <= 1'b0;
+      frame_meta_q <= 'x;
+      data_q       <= 'x;
+      mask_q       <= 'x;
+      last_q       <= 'x;
+      meta_q       <= 'x;
+      csum_mask_q  <= 'x;
     end else begin
-      first_q <= first_d;
-      pos_q   <= pos_d;
-      valid_q <= valid_d;
+      first_q      <= first_d;
+      pos_q        <= pos_d;
+      valid_q      <= valid_d;
+      frame_meta_q <= frame_meta_d;
+      data_q       <= data_d;
+      mask_q       <= mask_d;
+      last_q       <= last_d;
+      meta_q       <= meta_d;
+      csum_mask_q  <= csum_mask_d;
     end
-  end
-
-  always_ff @(posedge clk) begin
-    frame_meta_q <= frame_meta_d;
-    data_q       <= data_d;
-    mask_q       <= mask_d;
-    last_q       <= last_d;
-    meta_q       <= meta_d;
-    csum_mask_q  <= csum_mask_d;
   end
 
   always_comb begin

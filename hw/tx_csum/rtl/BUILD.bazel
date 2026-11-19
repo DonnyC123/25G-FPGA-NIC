@@ -5,8 +5,9 @@ verilog_library(
     srcs = ["csum_insert.sv"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:csum_pkg",
         "//hw/common/pkg:pcs_pkg",
+        "//hw/common/pkg:tx_meta_pkg",
         "//hw/rtl_utils/if:tx_eth_stream_if",
     ],
 )
@@ -16,10 +17,39 @@ verilog_library(
     srcs = ["tx_meta.sv"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hw/common/pkg:parser_pkg",
         "//hw/common/pkg:pcs_pkg",
         "//hw/common/pkg:tx_meta_pkg",
         "//hw/rtl_utils/if:axi_stream_if",
+    ],
+)
+
+verilog_library(
+    name = "csum_partial_sums",
+    srcs = ["csum_partial_sums.sv"],
+    deps = [
+        "//hw/common/pkg:csum_pkg",
+        "//hw/common/pkg:tx_meta_pkg",
+        "//hw/rtl_utils:csum_word",
+        "//hw/rtl_utils/if:axi_stream_if",
+    ],
+)
+
+verilog_library(
+    name = "csum_accum",
+    srcs = ["csum_accum.sv"],
+    deps = [
+        "//hw/common/pkg:csum_pkg",
+        "//hw/common/pkg:tx_meta_pkg",
+    ],
+)
+
+verilog_library(
+    name = "csum_finish",
+    srcs = ["csum_finish.sv"],
+    deps = [
+        "//hw/common/pkg:csum_pkg",
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/common/pkg:tx_meta_pkg",
     ],
 )
 
@@ -28,9 +58,11 @@ verilog_library(
     srcs = ["csum_sum.sv"],
     visibility = ["//visibility:public"],
     deps = [
-        "//hw/common/pkg:parser_pkg",
-        "//hw/common/pkg:pcs_pkg",
+        ":csum_accum",
+        ":csum_finish",
+        ":csum_partial_sums",
+        "//hw/common/pkg:csum_pkg",
         "//hw/common/pkg:tx_meta_pkg",
-        "//hw/rtl_utils:csum_word",
+        "//hw/rtl_utils/if:axi_stream_if",
     ],
 )

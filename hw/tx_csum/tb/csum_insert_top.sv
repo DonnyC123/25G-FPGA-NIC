@@ -1,5 +1,5 @@
 module csum_insert_top
-  import parser_pkg::*;
+  import tx_meta_pkg::*;
 #(
   parameter int DATA_W = 64
 ) (

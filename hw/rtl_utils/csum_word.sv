@@ -1,7 +1,7 @@
 module csum_word
   import pcs_pkg::BYTE_W;
-  import parser_pkg::CSUM_W;
-  import parser_pkg::CSUM_BYTES;
+  import csum_pkg::CSUM_W;
+  import csum_pkg::CSUM_BYTES;
 #(
   parameter  int BYTES = 8,
   localparam int WORDS = BYTES / CSUM_BYTES,

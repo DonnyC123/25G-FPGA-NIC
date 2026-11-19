@@ -7,7 +7,7 @@ verilog_library(
     srcs = ["csum_insert_top.sv"],
     visibility = ["//tools:__pkg__"],
     deps = [
-        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:tx_meta_pkg",
         "//hw/rtl_utils/if:tx_eth_stream_if",
         "//hw/tx_csum/rtl:csum_insert",
     ],
@@ -29,6 +29,7 @@ py_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//hw/common/pkg:csum_pkg_py",
         "//hw/common/pkg:parser_pkg_py",
         "//hw/common/pkg:tx_meta_pkg_py",
         "//hw/tb_utils",

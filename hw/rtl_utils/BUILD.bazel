@@ -6,7 +6,7 @@ RTL_UTILS_DEPS = {
     "bram": [],
     "crc32_word": ["//hw/common/pkg:crc32_pkg"],
     "csum_word": [
-        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:csum_pkg",
         "//hw/common/pkg:pcs_pkg",
     ],
     "data_pipeline": [],

@@ -26,4 +26,12 @@ interface axi_stream_if #(
     output ready
   );
 
+  modport monitor(
+    input data,
+    input mask,
+    input valid,
+    input last,
+    input ready
+  );
+
 endinterface

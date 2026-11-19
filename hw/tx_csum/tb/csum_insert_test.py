@@ -2,7 +2,6 @@ import random
 
 import cocotb
 
-from hw.tb_utils.tx_eth_stream import WORD_BYTES
 from hw.tx_csum.tb.csum_insert_test_base import CsumInsertTestBase
 from hw.tx_csum.tb.csum_model import CsumResult
 
@@ -11,10 +10,7 @@ def random_result(length: int) -> CsumResult:
     def pos() -> int:
         return random.choice([random.randrange(0, length + 16, 2), 24, 50, 70, length - 2, length - 1]) & ~1
 
-    return CsumResult(
-        random.getrandbits(1), max(pos(), 0), random.getrandbits(16), random.getrandbits(1), max(pos(), 0),
-        random.getrandbits(16)
-    )
+    return CsumResult(random.getrandbits(1), max(pos(), 0), random.getrandbits(16))
 
 
 async def run_frames(tb: CsumInsertTestBase, count: int, low: int, high: int) -> None:
@@ -30,8 +26,7 @@ async def test_every_position(dut) -> None:
     for length in (60, 61, 64, 65, 100):
         for pos in range(0, length + 2, 2):
             frame = random.randbytes(length)
-            result = CsumResult(1, pos, random.getrandbits(16), 1, (pos + 2 * WORD_BYTES) % length & ~1,
-                                random.getrandbits(16))
+            result = CsumResult(1, pos, random.getrandbits(16))
             await tb.sequence.add_frame_with_result(frame, result)
     await tb.finish()
 

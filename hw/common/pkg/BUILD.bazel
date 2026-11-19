@@ -11,6 +11,11 @@ sv_pkg(
 )
 
 sv_pkg(
+    name = "csum_pkg",
+    visibility = ["//visibility:public"],
+)
+
+sv_pkg(
     name = "parser_pkg",
     visibility = ["//visibility:public"],
 )
@@ -18,4 +23,5 @@ sv_pkg(
 sv_pkg(
     name = "tx_meta_pkg",
     visibility = ["//visibility:public"],
+    deps = [":csum_pkg"],
 )

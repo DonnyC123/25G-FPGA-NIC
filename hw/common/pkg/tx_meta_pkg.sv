@@ -1,4 +1,6 @@
 package tx_meta_pkg;
+  import csum_pkg::CSUM_W;
+
   localparam int TX_META_BYTES      = 32;
   localparam int TX_META_FIELD_W    = 16;
   localparam int TX_META_FLAGS_OFF  = 0;
@@ -6,6 +8,7 @@ package tx_meta_pkg;
   localparam int TX_META_OFFSET_OFF = 4;
   localparam int TX_META_LEN_OFF    = 6;
   localparam int TX_META_CSUM_BIT   = 0;
+  localparam int TX_OFF_W           = TX_META_FIELD_W + 1;
 
   typedef struct packed {
     logic                       csum;
@@ -13,5 +16,11 @@ package tx_meta_pkg;
     logic [TX_META_FIELD_W-1:0] csum_offset;
     logic [TX_META_FIELD_W-1:0] frame_len;
   } tx_meta_t;
+
+  typedef struct packed {
+    logic                l4_en;
+    logic [TX_OFF_W-1:0] l4_pos;
+    logic [CSUM_W-1:0]   l4_csum;
+  } csum_result_t;
 
 endpackage

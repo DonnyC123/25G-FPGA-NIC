@@ -1,6 +1,6 @@
 module tx_top
   import pcs_pkg::*;
-  import parser_pkg::csum_result_t;
+  import tx_meta_pkg::csum_result_t;
   import tx_meta_pkg::tx_meta_t;
   import tx_meta_pkg::TX_META_BYTES;
 #(
@@ -47,16 +47,11 @@ module tx_top
       .csum_mask_o(frame_csum_mask)
   );
 
-  csum_sum #(
-      .DATA_W(s_axi.DATA_W)
-  ) csum_sum_inst (
+  csum_sum csum_sum_inst (
       .clk           (axi_clk),
       .rst           (axi_rst),
-      .data_i        (frame_axi.data),
-      .mask_i        (frame_axi.mask),
+      .s_axi         (frame_axi),
       .csum_mask_i   (frame_csum_mask),
-      .last_i        (frame_axi.last),
-      .accept_i      (frame_axi.valid && frame_axi.ready),
       .meta_i        (frame_meta),
       .result_o      (csum_result),
       .result_valid_o(csum_result_valid)

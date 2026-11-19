@@ -4,7 +4,7 @@ from typing import Self
 from hw.common.pkg import parser_pkg as pkg
 from hw.common.pkg import tx_meta_pkg as meta_pkg
 
-from hw.tb_utils.net.checksum import CSUM_MASK, fold, ones_sum
+from hw.tb_utils.net.checksum import CSUM_MASK, ones_sum, ones_sum_fold
 
 FIELDS = (
     ("csum_start", meta_pkg.TX_META_START_OFF),
@@ -65,7 +65,7 @@ def seed(frame: bytes, meta: TxMeta) -> bytes:
     out = bytearray(frame)
     out[pos : pos + 2] = b"\0\0"
     rest = ones_sum(bytes(out[meta.csum_start :]))
-    out[pos : pos + 2] = fold(target + (~rest & CSUM_MASK)).to_bytes(2, "big")
+    out[pos : pos + 2] = ones_sum_fold(target + (~rest & CSUM_MASK)).to_bytes(2, "big")
     return bytes(out)
 
 
