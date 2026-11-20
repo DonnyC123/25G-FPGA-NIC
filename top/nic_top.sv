@@ -320,7 +320,7 @@ module nic_top
       .GOOD_COUNT  (64),
       .BAD_COUNT   (8),
       .BITSLIP_WAIT(256),
-      .FIFO_DEPTH  (512),
+      .FIFO_DEPTH  (2048),
       .DROP_COUNT_W(DROP_W)
   ) rx_top_inst (
       .eth_clk         (rx_usrclk),
