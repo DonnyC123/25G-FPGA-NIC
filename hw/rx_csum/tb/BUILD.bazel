@@ -25,6 +25,7 @@ py_library(
     deps = [
         "//hw/common/pkg:csum_pkg_py",
         "//hw/common/pkg:parser_pkg_py",
+        "//hw/common/pkg:pcs_pkg_py",
         "//hw/rx_parser/tb:parser_frames",
         "//hw/tb_utils",
         "//hw/tb_utils/net",

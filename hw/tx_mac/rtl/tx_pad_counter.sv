@@ -1,8 +1,6 @@
 module tx_pad_counter
   import pcs_pkg::*;
-#(
-  parameter int MIN_FRAME_BYTES = 60
-) (
+(
   input  logic                  clk,
   input  logic                  rst,
   input  logic                  clear_i,
@@ -12,8 +10,9 @@ module tx_pad_counter
   output logic                  done_o
 );
 
-  localparam int COUNT_W = $clog2(MIN_FRAME_BYTES + PCS_PAYLOAD_BYTES + 1);
-  localparam int POS_W   = LAST_BYTES_W + 1;
+  localparam int PAD_BYTES = ETH_MIN_FRAME_BYTES - ETH_FCS_BYTES;
+  localparam int COUNT_W   = $clog2(PAD_BYTES + PCS_PAYLOAD_BYTES + 1);
+  localparam int POS_W     = LAST_BYTES_W + 1;
 
   logic [COUNT_W-1:0] bytes_d;
   logic [COUNT_W-1:0] bytes_q;
@@ -23,12 +22,12 @@ module tx_pad_counter
   logic               pad_needed;
 
   always_comb begin
-    remaining  = COUNT_W'(MIN_FRAME_BYTES) - bytes_q;
-    pad_needed = bytes_q + COUNT_W'(word_bytes_i) < COUNT_W'(MIN_FRAME_BYTES);
+    remaining  = COUNT_W'(PAD_BYTES) - bytes_q;
+    pad_needed = bytes_q + COUNT_W'(word_bytes_i) < COUNT_W'(PAD_BYTES);
 
     bytes_after = bytes_q + COUNT_W'(PCS_PAYLOAD_BYTES);
-    if (bytes_after > COUNT_W'(MIN_FRAME_BYTES)) begin
-      bytes_after = COUNT_W'(MIN_FRAME_BYTES);
+    if (bytes_after > COUNT_W'(PAD_BYTES)) begin
+      bytes_after = COUNT_W'(PAD_BYTES);
     end
   end
 

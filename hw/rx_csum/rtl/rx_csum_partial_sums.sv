@@ -45,8 +45,8 @@ module rx_csum_partial_sums
     for (int i = 0; i < ETH_DATA_BYTES; i++) begin
       pos               = {word_idx_q, LAST_BYTES_W'(i)};
       start_mask[i]     = pos >= START_POS;
-      tail_mask[i]      = POS_W'(i + FCS_BYTES) < POS_W'(eth_stream_i.last_bytes);
-      hold_tail_mask[i] = POS_W'(i) < POS_W'(eth_stream_i.last_bytes) + POS_W'(ETH_DATA_BYTES - FCS_BYTES);
+      tail_mask[i]      = POS_W'(i + ETH_FCS_BYTES) < POS_W'(eth_stream_i.last_bytes);
+      hold_tail_mask[i] = POS_W'(i) < POS_W'(eth_stream_i.last_bytes) + POS_W'(ETH_DATA_BYTES - ETH_FCS_BYTES);
     end
   end
 

@@ -2,8 +2,7 @@ module tx_framer_ctrl
   import pcs_pkg::*;
   import crc32_pkg::*;
 #(
-  parameter  int MIN_FRAME_BYTES = 60,
-  localparam int POS_W           = LAST_BYTES_W + 1
+  localparam int POS_W = LAST_BYTES_W + 1
 ) (
   input  logic                     clk,
   input  logic                     rst,
@@ -90,9 +89,7 @@ module tx_framer_ctrl
     end
   end
 
-  tx_pad_counter #(
-      .MIN_FRAME_BYTES(MIN_FRAME_BYTES)
-  ) tx_pad_counter_inst (
+  tx_pad_counter tx_pad_counter_inst (
       .clk         (clk),
       .rst         (rst),
       .clear_i     (count_clear),

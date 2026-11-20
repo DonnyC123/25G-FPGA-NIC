@@ -27,7 +27,6 @@ class TxPcsTestBase(
             monitor=PcsRawMonitor,
             model=TxFrameModel,
         )
-        self.model.min_frame_bytes = int(dut.MIN_FRAME_BYTES.value)
 
     @classmethod
     async def start(cls, dut) -> Self:

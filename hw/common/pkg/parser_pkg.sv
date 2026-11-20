@@ -15,7 +15,6 @@ package parser_pkg;
   localparam int MAX_VLANS           = 2;
   localparam int ETHERTYPE_POSITIONS = MAX_VLANS + 1;
   localparam int VLAN_COUNT_W        = $clog2(MAX_VLANS + 1);
-  localparam int FCS_BYTES           = 4;
 
   localparam rx_off_t ETHERTYPE_POS_0 = RX_OFF_W'(ETH_TYPE_OFF);
   localparam rx_off_t ETHERTYPE_POS_1 = RX_OFF_W'(ETH_TYPE_OFF + VLAN_TAG_BYTES);

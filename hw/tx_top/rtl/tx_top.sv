@@ -5,7 +5,6 @@ module tx_top
   import tx_meta_pkg::TX_META_BYTES;
 #(
   parameter int FIFO_DEPTH       = 64,
-  parameter int MIN_FRAME_BYTES  = 60,
   parameter int SCRAMBLER_BYPASS = 0
 ) (
   input  logic                     axi_clk,
@@ -108,7 +107,6 @@ module tx_top
   );
 
   tx_pcs #(
-      .MIN_FRAME_BYTES (MIN_FRAME_BYTES),
       .SCRAMBLER_BYPASS(SCRAMBLER_BYPASS)
   ) tx_pcs_inst (
       .clk        (eth_clk),

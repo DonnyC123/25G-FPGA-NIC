@@ -9,13 +9,12 @@ from hw.tb_utils.net.packets import add_fcs
 from hw.tb_utils.net.pcs_blocks import PcsBlock, PcsEvent, decode, gaps
 
 
-class TxFrameModel(GenericModel):
-    def __init__(self) -> None:
-        super().__init__()
-        self.min_frame_bytes = 0
+PAD_BYTES = pcs_pkg.ETH_MIN_FRAME_BYTES - pcs_pkg.ETH_FCS_BYTES
 
+
+class TxFrameModel(GenericModel):
     def expected(self) -> list[bytes]:
-        return [add_fcs(frame.ljust(self.min_frame_bytes, b"\0")) for frame in self.items]
+        return [add_fcs(frame.ljust(PAD_BYTES, b"\0")) for frame in self.items]
 
     def check(self, blocks: Iterable[PcsBlock]) -> None:
         blocks = list(blocks)

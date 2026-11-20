@@ -12,8 +12,7 @@ module tx_fcs_encoder
   output logic                     fcs_fits_o
 );
 
-  localparam int POS_W     = LAST_BYTES_W + 1;
-  localparam int FCS_BYTES = CRC_W / BYTE_W;
+  localparam int POS_W = LAST_BYTES_W + 1;
 
   logic [CRC_W-1:0] crc_by_bytes [PCS_PAYLOAD_BYTES];
   logic [CRC_W-1:0] crc_end;
@@ -34,11 +33,11 @@ module tx_fcs_encoder
     end
 
     fcs_o      = ~crc_end;
-    fcs_fits_o = end_pos_i < POS_W'(PCS_PAYLOAD_BYTES - FCS_BYTES);
+    fcs_fits_o = end_pos_i < POS_W'(PCS_PAYLOAD_BYTES - ETH_FCS_BYTES);
 
-    term_bytes_o = LAST_BYTES_W'(end_pos_i + POS_W'(FCS_BYTES));
+    term_bytes_o = LAST_BYTES_W'(end_pos_i + POS_W'(ETH_FCS_BYTES));
     if (!fcs_fits_o) begin
-      term_bytes_o = LAST_BYTES_W'(end_pos_i - POS_W'(FCS_BYTES));
+      term_bytes_o = LAST_BYTES_W'(end_pos_i - POS_W'(ETH_FCS_BYTES));
     end
   end
 

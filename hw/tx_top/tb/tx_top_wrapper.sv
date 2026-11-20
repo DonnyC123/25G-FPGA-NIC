@@ -1,9 +1,8 @@
 module tx_top_wrapper
   import pcs_pkg::*;
 #(
-  parameter int AXI_DATA_W      = 256,
-  parameter int FIFO_DEPTH      = 64,
-  parameter int MIN_FRAME_BYTES = 60
+  parameter int AXI_DATA_W = 256,
+  parameter int FIFO_DEPTH = 64
 ) (
   input  logic                     axi_clk,
   input  logic                     axi_rst,
@@ -17,8 +16,7 @@ module tx_top_wrapper
   axi_stream_if #(.DATA_W(AXI_DATA_W)) s_axi ();
 
   tx_top #(
-      .FIFO_DEPTH     (FIFO_DEPTH),
-      .MIN_FRAME_BYTES(MIN_FRAME_BYTES)
+      .FIFO_DEPTH(FIFO_DEPTH)
   ) tx_top_inst (
       .axi_clk    (axi_clk),
       .axi_rst    (axi_rst),

@@ -30,7 +30,6 @@ class TxFramerTestBase(
             monitor=TxFramerMonitor,
             model=TxFrameModel,
         )
-        self.model.min_frame_bytes = int(dut.MIN_FRAME_BYTES.value)
         self.ready_driver = AxiStreamReadyDriver(
             dut.out_ready_i, dut.clk, ready_probability
         )

@@ -1,7 +1,6 @@
 module tx_pcs
   import pcs_pkg::*;
 #(
-  parameter int MIN_FRAME_BYTES  = 60,
   parameter int SCRAMBLER_BYPASS = 0,
   parameter int DOUT_W           = 64
 ) (
@@ -21,9 +20,7 @@ module tx_pcs
 
   logic           gearbox_ready;
 
-  tx_framer #(
-      .MIN_FRAME_BYTES(MIN_FRAME_BYTES)
-  ) tx_framer_inst (
+  tx_framer tx_framer_inst (
       .clk          (clk),
       .rst          (rst),
       .tx_stream_i  (tx_stream_i),

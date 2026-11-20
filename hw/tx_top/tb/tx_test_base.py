@@ -44,7 +44,6 @@ class TxTestBase(
             monitor=TxTopMonitor,
             model=TxTopModel,
         )
-        self.model.min_frame_bytes = int(dut.MIN_FRAME_BYTES.value)
         self.max_frame = int(dut.FIFO_DEPTH.value) * AXI_WORD_BYTES - 1
 
     @classmethod

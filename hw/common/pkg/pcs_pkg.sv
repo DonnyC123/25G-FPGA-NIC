@@ -45,9 +45,11 @@ package pcs_pkg;
     logic [XCODE_HDR_W-1:0]     hdr;
   } pcs_257b_block_t;
 
-  localparam int ETH_DATA_BYTES = PCS_PAYLOAD_BYTES;
-  localparam int ETH_DATA_W     = ETH_DATA_BYTES * BYTE_W;
-  localparam int LAST_BYTES_W   = $clog2(ETH_DATA_BYTES);
+  localparam int ETH_DATA_BYTES      = PCS_PAYLOAD_BYTES;
+  localparam int ETH_DATA_W          = ETH_DATA_BYTES * BYTE_W;
+  localparam int LAST_BYTES_W        = $clog2(ETH_DATA_BYTES);
+  localparam int ETH_FCS_BYTES       = 4;
+  localparam int ETH_MIN_FRAME_BYTES = 64;
 
   typedef struct packed {
     logic [ETH_DATA_W-1:0]   data;

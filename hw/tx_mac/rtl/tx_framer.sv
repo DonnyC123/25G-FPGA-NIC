@@ -1,9 +1,7 @@
 module tx_framer
   import pcs_pkg::*;
   import crc32_pkg::*;
-#(
-  parameter int MIN_FRAME_BYTES = 60
-) (
+(
   input  logic                     clk,
   input  logic                     rst,
          tx_eth_stream_if.slave    tx_stream_i,
@@ -29,9 +27,7 @@ module tx_framer
   logic [LAST_BYTES_W-1:0]  stage_term_bytes;
   logic                     stage_fcs_fits;
 
-  tx_framer_ctrl #(
-      .MIN_FRAME_BYTES(MIN_FRAME_BYTES)
-  ) tx_framer_ctrl_inst (
+  tx_framer_ctrl tx_framer_ctrl_inst (
       .clk         (clk),
       .rst         (rst),
       .tx_stream_i (tx_stream_i),
