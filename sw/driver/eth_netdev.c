@@ -24,9 +24,6 @@ static int rx_clean_skb(struct xdma_rx_ring* rx_ring, int budget) {
 	for (packets_processed = 0; packets_processed < budget; packets_processed++) {
 		struct xdma_result* res = &rx_ring->hw_res_ring_virt[*ci];
 		struct xdma_rx_buffer_info* bi = &rx_ring->sw_ring[*ci];
-		struct eth_rx_meta* meta;
-		struct sk_buff* skb;
-		struct page* page;
 
 		if (!res->status)
 			break;
@@ -35,13 +32,14 @@ static int rx_clean_skb(struct xdma_rx_ring* rx_ring, int budget) {
 		res->status = 0;
 
 		u32 dma_len = le32_to_cpu(res->length);
-		page = bi->page;
+		struct page* page = bi->page;
 		bi->page = NULL;
 		bi->dma = 0;
 
 		*ci = (*ci + 1) % rx_ring->count;
 
-		if (unlikely((dma_len < ETH_HLEN + ETH_FCS_LEN + sizeof(*meta)) || (dma_len > rx_ring->buffer_len))) {
+		if (unlikely(dma_len < sizeof(struct eth_rx_meta) + ETH_HLEN + ETH_FCS_LEN ||
+			     dma_len > rx_ring->buffer_len)) {
 			net_dev->stats.rx_errors++;
 			page_pool_recycle_direct(rx_ring->page_pool, page);
 			continue;
@@ -50,9 +48,10 @@ static int rx_clean_skb(struct xdma_rx_ring* rx_ring, int budget) {
 		dma_sync_single_for_cpu(rx_ring->dev, page_pool_get_dma_addr(page) + RX_HEADROOM, dma_len,
 					DMA_FROM_DEVICE);
 
-		meta = page_address(page) + RX_HEADROOM;
-		skb = napi_build_skb(page_address(page), PAGE_SIZE);
+		void* page_buf = page_address(page);
+		struct eth_rx_meta* meta = page_buf + RX_HEADROOM;
 
+		struct sk_buff* skb = napi_build_skb(page_buf, PAGE_SIZE);
 		if (unlikely(!skb)) {
 			net_dev->stats.rx_dropped++;
 			page_pool_recycle_direct(rx_ring->page_pool, page);
@@ -66,9 +65,8 @@ static int rx_clean_skb(struct xdma_rx_ring* rx_ring, int budget) {
 		skb_mark_for_recycle(skb);
 		skb->protocol = eth_type_trans(skb, net_dev);
 
-		if ((net_dev->features & NETIF_F_RXHASH) && (meta->hash_type != ETH_RX_HASH_NONE)) {
+		if (net_dev->features & NETIF_F_RXHASH)
 			skb_set_hash(skb, le32_to_cpu(meta->hash), eth_rx_hash_type(meta->hash_type));
-		}
 
 		if (net_dev->features & NETIF_F_RXCSUM) {
 			skb->ip_summed = CHECKSUM_COMPLETE;
