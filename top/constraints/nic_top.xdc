@@ -25,13 +25,28 @@ set_property PACKAGE_PIN T6 [get_ports pcie_refclk_clk_n]
 # ---------------------------------------------------------------------------
 
 # The PCIe AXI clock (250 MHz) and the 25G GT user clocks (402.83 MHz) come
-# from unrelated oscillators. They only cross through async_packet_fifo
-# (gray-coded pointers + 2-flop synchronizers) and rst_sync, so bound each
-# crossing to one destination clock period instead of timing it as synchronous.
+# from unrelated oscillators. They only cross through async_packet_fifo and
+# async_fifo (gray-coded pointers + 2-flop synchronizers), handshake_cdc (held
+# data + synchronized req/ack) and rst_sync, so bound each crossing to one
+# destination clock period instead of timing it as synchronous.
 set_max_delay -datapath_only -from [get_clocks axi_aclk] -to [get_clocks {gtwiz_userclk_tx_srcclk_out[0]}] 2.482
 set_max_delay -datapath_only -from [get_clocks {gtwiz_userclk_tx_srcclk_out[0]}] -to [get_clocks axi_aclk] 4.000
 set_max_delay -datapath_only -from [get_clocks axi_aclk] -to [get_clocks {gtwiz_userclk_rx_srcclk_out[0]}] 2.482
 set_max_delay -datapath_only -from [get_clocks {gtwiz_userclk_rx_srcclk_out[0]}] -to [get_clocks axi_aclk] 4.000
+
+# The async FIFO pointer synchronizers need ASYNC_REG so their two flops are
+# placed together, and the gray-coded pointer bits must not skew by more than
+# one period of the fastest clock or the receiver can see a mixed value.
+set_property ASYNC_REG TRUE [get_cells -hierarchical -filter {NAME =~ *_addr_sync_inst/data_shift_reg_q_reg*}]
+set_property ASYNC_REG TRUE [get_cells -hierarchical -filter {NAME =~ *handshake_cdc_inst/req_sync_inst/data_shift_reg_q_reg* || NAME =~ *handshake_cdc_inst/ack_sync_inst/data_shift_reg_q_reg*}]
+set_bus_skew -from [get_cells {tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_gray_q_reg[*]}] -to [get_cells {tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {tx_top_inst/csum_fifo_inst/wr_addr_gray_q_reg[*]}] -to [get_cells {tx_top_inst/csum_fifo_inst/wr_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {tx_top_inst/csum_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {tx_top_inst/csum_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_gray_q_reg[*]}] -to [get_cells {rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/wr_addr_gray_q_reg[*]}] -to [get_cells {rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/wr_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
 
 # ---------------------------------------------------------------------------
 # PCIe
@@ -71,6 +86,11 @@ set_false_path -to [get_ports {sfp_1_led led_g}]
 # rx_lock_watchdog resynchronizes rx_locked and rx_reset_done onto freerun_clk.
 set_false_path -to [get_cells -hierarchical -filter {NAME =~ *status_sync_inst/data_shift_reg_q_reg*}]
 set_property ASYNC_REG TRUE [get_cells -hierarchical -filter {NAME =~ *status_sync_inst/data_shift_reg_q_reg*}]
+
+# The link resets combine GT status from other clocks; link_rst_sync_inst
+# registers them on freerun_clk so rst_sync's async preset is driven by a flop.
+set_false_path -to [get_cells -hierarchical -filter {NAME =~ *link_rst_sync_inst/data_shift_reg_q_reg*}]
+set_property ASYNC_REG TRUE [get_cells -hierarchical -filter {NAME =~ *link_rst_sync_inst/data_shift_reg_q_reg*}]
 set_false_path -to [get_pins -of_objects [get_cells -hierarchical -filter {NAME =~ *rst_sync_inst/sync_q_reg*}] -filter {REF_PIN_NAME == PRE}]
 
 # ---------------------------------------------------------------------------

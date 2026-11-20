@@ -1,6 +1,7 @@
 load("@rules_verilog//verilog:defs.bzl", "verilog_library")
 
 RTL_UTILS_IF_DEPS = {
+    "axi4_lite_if": [],
     "axi_stream_if": [],
     "data_valid_if": [],
     "fifo_rd_if": [],

@@ -1,4 +1,6 @@
-module nic_top #(
+module nic_top
+  import rss_pkg::*;
+#(
   parameter int SCRAMBLER_BYPASS = 0,
   parameter int DEBUG_EN         = 1
 ) (
@@ -35,6 +37,12 @@ module nic_top #(
 
   axi_stream_if #(.DATA_W(AXI_DATA_W)) rx_axi_stream ();
   axi_stream_if #(.DATA_W(AXI_DATA_W)) tx_axi_stream ();
+  axi4_lite_if                         nic_axil ();
+
+  logic [RSS_KEY_W-1:0]                  rss_key;
+  logic                                  udp_ports_en;
+  logic [RETA_SIZE-1:0][RSS_QUEUE_W-1:0] reta;
+  logic                                  cfg_eth_rst;
 
   logic                 freerun_clk;
   logic                 mgtrefclk_227;
@@ -65,6 +73,10 @@ module nic_top #(
   logic                 rx_locked;
   logic                 rx_bitslip;
 
+  pcs_pkg::rx_eth_stream_t rx_pcs_stream;
+  logic                    rx_crc_drop;
+  logic                    rx_fifo_cancel;
+
   logic                 rx_invert;
   logic                 rx_invert_sync [2];
   logic                 rx_datapath_rst;
@@ -78,6 +90,9 @@ module nic_top #(
   logic                 tx_ready;
   logic                 rx_link_rst;
   logic                 tx_link_rst;
+  logic [1:0]           link_rst_sync [2];
+  logic                 rx_link_rst_sync;
+  logic                 tx_link_rst_sync;
   logic                 rx_eth_rst;
   logic                 rx_axi_rst;
   logic                 tx_eth_rst;
@@ -126,6 +141,17 @@ module nic_top #(
   assign tx_axi_stream.valid = 1'b0;
   assign tx_axi_stream.last  = 1'b0;
   assign rx_axi_stream.ready = 1'b1;
+  assign nic_axil.awaddr     = '0;
+  assign nic_axil.awprot     = '0;
+  assign nic_axil.awvalid    = 1'b0;
+  assign nic_axil.wdata      = '0;
+  assign nic_axil.wstrb      = '0;
+  assign nic_axil.wvalid     = 1'b0;
+  assign nic_axil.bready     = 1'b1;
+  assign nic_axil.araddr     = '0;
+  assign nic_axil.arprot     = '0;
+  assign nic_axil.arvalid    = 1'b0;
+  assign nic_axil.rready     = 1'b1;
 `else
   design_1_wrapper design_1_wrapper_inst (
       .pci_express_x8_rxn   (pci_express_x8_rxn),
@@ -147,7 +173,26 @@ module nic_top #(
       .S_AXIS_C2H_0_0_tkeep (rx_axi_stream.mask),
       .S_AXIS_C2H_0_0_tvalid(rx_axi_stream.valid),
       .S_AXIS_C2H_0_0_tlast (rx_axi_stream.last),
-      .S_AXIS_C2H_0_0_tready(rx_axi_stream.ready)
+      .S_AXIS_C2H_0_0_tready(rx_axi_stream.ready),
+      .M_AXI_LITE_0_awaddr  (nic_axil.awaddr),
+      .M_AXI_LITE_0_awprot  (nic_axil.awprot),
+      .M_AXI_LITE_0_awvalid (nic_axil.awvalid),
+      .M_AXI_LITE_0_awready (nic_axil.awready),
+      .M_AXI_LITE_0_wdata   (nic_axil.wdata),
+      .M_AXI_LITE_0_wstrb   (nic_axil.wstrb),
+      .M_AXI_LITE_0_wvalid  (nic_axil.wvalid),
+      .M_AXI_LITE_0_wready  (nic_axil.wready),
+      .M_AXI_LITE_0_bresp   (nic_axil.bresp),
+      .M_AXI_LITE_0_bvalid  (nic_axil.bvalid),
+      .M_AXI_LITE_0_bready  (nic_axil.bready),
+      .M_AXI_LITE_0_araddr  (nic_axil.araddr),
+      .M_AXI_LITE_0_arprot  (nic_axil.arprot),
+      .M_AXI_LITE_0_arvalid (nic_axil.arvalid),
+      .M_AXI_LITE_0_arready (nic_axil.arready),
+      .M_AXI_LITE_0_rdata   (nic_axil.rdata),
+      .M_AXI_LITE_0_rresp   (nic_axil.rresp),
+      .M_AXI_LITE_0_rvalid  (nic_axil.rvalid),
+      .M_AXI_LITE_0_rready  (nic_axil.rready)
   );
 `endif
 
@@ -194,28 +239,59 @@ module nic_top #(
     tx_link_rst = !tx_ready || axi_rst;
   end
 
+  shift_reg #(
+      .DATA_W    (2),
+      .PIPE_DEPTH(2),
+      .RST_EN    (1),
+      .RST_VAL   ('1)
+  ) link_rst_sync_inst (
+      .clk   (freerun_clk),
+      .rst   (freerun_rst_q),
+      .data_i({rx_link_rst, tx_link_rst}),
+      .data_o(link_rst_sync)
+  );
+
+  assign {rx_link_rst_sync, tx_link_rst_sync} = link_rst_sync[1];
+
   rst_sync rx_eth_rst_sync_inst (
       .clk  (rx_usrclk),
-      .rst_i(rx_link_rst),
+      .rst_i(rx_link_rst_sync),
       .rst_o(rx_eth_rst)
   );
 
   rst_sync rx_axi_rst_sync_inst (
       .clk  (axi_aclk),
-      .rst_i(rx_link_rst),
+      .rst_i(rx_link_rst_sync),
       .rst_o(rx_axi_rst)
   );
 
   rst_sync tx_eth_rst_sync_inst (
       .clk  (tx_usrclk),
-      .rst_i(tx_link_rst),
+      .rst_i(tx_link_rst_sync),
       .rst_o(tx_eth_rst)
   );
 
   rst_sync tx_axi_rst_sync_inst (
       .clk  (axi_aclk),
-      .rst_i(tx_link_rst),
+      .rst_i(tx_link_rst_sync),
       .rst_o(tx_axi_rst)
+  );
+
+  rst_sync cfg_eth_rst_sync_inst (
+      .clk  (rx_usrclk),
+      .rst_i(axi_rst),
+      .rst_o(cfg_eth_rst)
+  );
+
+  nic_regs nic_regs_inst (
+      .axi_clk       (axi_aclk),
+      .axi_rst       (axi_rst),
+      .s_axil        (nic_axil),
+      .eth_clk       (rx_usrclk),
+      .eth_rst       (cfg_eth_rst),
+      .rss_key_o     (rss_key),
+      .udp_ports_en_o(udp_ports_en),
+      .reta_o        (reta)
   );
 
   rx_lock_watchdog rx_lock_watchdog_inst (
@@ -253,11 +329,17 @@ module nic_top #(
       .axi_rst         (rx_axi_rst),
       .raw_data_i      (rx_raw_data),
       .raw_valid_i     (1'b1),
+      .rss_key_i       (rss_key),
+      .udp_ports_en_i  (udp_ports_en),
+      .reta_i          (reta),
       .locked_o        (rx_locked),
       .bitslip_o       (rx_bitslip),
       .overflow_drops_o(overflow_drops),
       .crc_drops_o     (crc_drops),
       .pcs_drops_o     (pcs_drops),
+      .pcs_stream_o    (rx_pcs_stream),
+      .crc_drop_o      (rx_crc_drop),
+      .fifo_cancel_o   (rx_fifo_cancel),
       .m_axi           (rx_axi_stream)
   );
 
@@ -303,12 +385,12 @@ module nic_top #(
         .probe1(rx_eth_rst),
         .probe2(rx_locked),
         .probe3(rx_bitslip),
-        .probe4(rx_top_inst.pcs_stream.valid),
-        .probe5(rx_top_inst.pcs_stream.last),
-        .probe6(rx_top_inst.pcs_stream.drop),
-        .probe7(rx_top_inst.pcs_stream.data),
-        .probe8(rx_top_inst.crc_drop),
-        .probe9(rx_top_inst.fifo_cancel)
+        .probe4(rx_pcs_stream.valid),
+        .probe5(rx_pcs_stream.last),
+        .probe6(rx_pcs_stream.drop),
+        .probe7(rx_pcs_stream.data),
+        .probe8(rx_crc_drop),
+        .probe9(rx_fifo_cancel)
     );
 
     ila_c2h ila_c2h_inst (

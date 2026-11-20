@@ -1,5 +1,6 @@
 module rx_fifo_top
   import pcs_pkg::*;
+  import rx_meta_pkg::*;
 #(
   parameter int M_DATA_W   = 256,
   parameter int FIFO_DEPTH = 64
@@ -13,6 +14,7 @@ module rx_fifo_top
   input  logic                     valid_i,
   input  logic                     last_i,
   input  logic                     drop_i,
+  input  logic [$bits(rx_meta_t)-1:0] meta_i,
   output logic                     cancel_o
 );
 
@@ -36,6 +38,7 @@ module rx_fifo_top
       .m_clk       (axi_clk),
       .m_rst       (axi_rst),
       .eth_stream_i(eth_stream),
+      .meta_i      (meta_i),
       .cancel_o    (cancel_o),
       .m_axi       (m_axi)
   );

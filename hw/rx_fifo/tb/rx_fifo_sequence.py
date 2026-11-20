@@ -22,7 +22,8 @@ class RxFifoSequence(GenericSequence[RxFifoEntry]):
         last: bool = False,
         drop: bool = False,
     ) -> None:
-        item = RxFifoSequenceItem.from_bytes(word, last, drop)
+        meta = 0 if sent is None else sent.meta_value
+        item = RxFifoSequenceItem.from_bytes(word, last, drop, meta)
         await self.add_transaction(RxFifoEntry(item, sent))
 
     async def add_frame(self, frame: bytes) -> None:

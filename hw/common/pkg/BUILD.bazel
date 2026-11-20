@@ -32,3 +32,14 @@ sv_pkg(
     visibility = ["//visibility:public"],
     deps = [":csum_pkg"],
 )
+
+sv_pkg(
+    name = "rx_meta_pkg",
+    visibility = ["//visibility:public"],
+)
+
+sv_pkg(
+    name = "nic_regs_pkg",
+    visibility = ["//visibility:public"],
+    deps = [":rss_pkg"],
+)

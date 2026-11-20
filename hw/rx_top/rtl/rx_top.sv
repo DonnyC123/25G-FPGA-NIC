@@ -1,5 +1,9 @@
 module rx_top
   import pcs_pkg::*;
+  import parser_pkg::*;
+  import rss_pkg::*;
+  import csum_pkg::*;
+  import rx_meta_pkg::*;
 #(
   parameter int DIN_W        = 64,
   parameter int GOOD_COUNT   = 64,
@@ -8,21 +12,29 @@ module rx_top
   parameter int FIFO_DEPTH   = 64,
   parameter int DROP_COUNT_W = 32
 ) (
-  input  logic                    eth_clk,
-  input  logic                    eth_rst,
-  input  logic                    axi_clk,
-  input  logic                    axi_rst,
-  input  logic [DIN_W-1:0]        raw_data_i,
-  input  logic                    raw_valid_i,
+  input  logic                                  eth_clk,
+  input  logic                                  eth_rst,
+  input  logic                                  axi_clk,
+  input  logic                                  axi_rst,
+  input  logic [DIN_W-1:0]                      raw_data_i,
+  input  logic                                  raw_valid_i,
 
-  output logic                    locked_o,
-  output logic                    bitslip_o,
+  input  logic [RSS_KEY_W-1:0]                  rss_key_i,
+  input  logic                                  udp_ports_en_i,
+  input  logic [RETA_SIZE-1:0][RSS_QUEUE_W-1:0] reta_i,
 
-  output logic [DROP_COUNT_W-1:0] overflow_drops_o,
-  output logic [DROP_COUNT_W-1:0] crc_drops_o,
-  output logic [DROP_COUNT_W-1:0] pcs_drops_o,
+  output logic                                  locked_o,
+  output logic                                  bitslip_o,
 
-         axi_stream_if.master     m_axi
+  output logic [DROP_COUNT_W-1:0]               overflow_drops_o,
+  output logic [DROP_COUNT_W-1:0]               crc_drops_o,
+  output logic [DROP_COUNT_W-1:0]               pcs_drops_o,
+
+  output rx_eth_stream_t                        pcs_stream_o,
+  output logic                                  crc_drop_o,
+  output logic                                  fifo_cancel_o,
+
+         axi_stream_if.master                   m_axi
 );
 
   rx_eth_stream_t          pcs_stream;
@@ -32,6 +44,11 @@ module rx_top
   logic                    frame_end;
   logic                    crc_drop;
   logic                    crc_drop_q;
+
+  rss_meta_t               rss;
+  logic [CSUM_W-1:0]       csum;
+  logic [CSUM_W-1:0]       csum_q;
+  rx_meta_t                meta;
   logic                    fifo_cancel;
 
   logic                    discard_d;
@@ -70,18 +87,55 @@ module rx_top
       .drop_o      (crc_drop)
   );
 
-  data_status_pipeline #(
-      .DATA_W    ($bits(pcs_stream.data) + $bits(pcs_stream.last_bytes) + $bits(pcs_stream.last)),
-      .STATUS_W  ($bits(pcs_stream.valid) + $bits(pcs_stream.drop) + $bits(crc_drop)),
-      .PIPE_DEPTH(1)
-  ) crc_pipeline_inst (
-      .clk     (eth_clk),
-      .rst     (eth_rst),
-      .data_i  ({pcs_stream.data, pcs_stream.last_bytes, pcs_stream.last}),
-      .status_i({pcs_stream.valid, pcs_stream.drop, crc_drop}),
-      .data_o  ({eth_stream.data, eth_stream.last_bytes, eth_stream.last}),
-      .status_o({eth_stream.valid, eth_stream.drop, crc_drop_q})
+  rx_rss rx_rss_inst (
+      .clk           (eth_clk),
+      .rst           (eth_rst),
+      .eth_stream_i  (pcs_stream),
+      .rss_key_i     (rss_key_i),
+      .udp_ports_en_i(udp_ports_en_i),
+      .reta_i        (reta_i),
+      .eth_stream_o  (eth_stream),
+      .rss_valid_o   (),
+      .rss_o         (rss)
   );
+
+  rx_csum rx_csum_inst (
+      .clk         (eth_clk),
+      .rst         (eth_rst),
+      .eth_stream_i(pcs_stream),
+      .csum_valid_o(),
+      .csum_o      (csum)
+  );
+
+  data_pipeline #(
+      .DATA_W    (CSUM_W),
+      .PIPE_DEPTH(RX_RSS_LATENCY - RX_CSUM_LATENCY),
+      .RST_EN    (0)
+  ) csum_pipeline_inst (
+      .clk   (eth_clk),
+      .rst   (eth_rst),
+      .data_i(csum),
+      .data_o(csum_q)
+  );
+
+  data_pipeline #(
+      .DATA_W    ($bits(crc_drop)),
+      .PIPE_DEPTH(RX_RSS_LATENCY),
+      .RST_EN    (1)
+  ) crc_pipeline_inst (
+      .clk   (eth_clk),
+      .rst   (eth_rst),
+      .data_i(crc_drop),
+      .data_o(crc_drop_q)
+  );
+
+  always_comb begin
+    meta           = '0;
+    meta.hash      = rss.hash;
+    meta.csum      = csum_q;
+    meta.hash_type = RX_META_BYTE_W'(rss.hash_type);
+    meta.rx_queue  = RX_META_BYTE_W'(rss.rx_queue);
+  end
 
   always_comb begin
     frame_end = (eth_stream.valid && eth_stream.last) || eth_stream.drop;
@@ -142,6 +196,7 @@ module rx_top
       .m_clk       (axi_clk),
       .m_rst       (axi_rst),
       .eth_stream_i(fifo_stream),
+      .meta_i      (meta),
       .cancel_o    (fifo_cancel),
       .m_axi       (m_axi)
   );
@@ -149,5 +204,8 @@ module rx_top
   assign overflow_drops_o = overflow_drops_q;
   assign crc_drops_o      = crc_drops_q;
   assign pcs_drops_o      = pcs_drops_q;
+  assign pcs_stream_o     = pcs_stream;
+  assign crc_drop_o       = crc_drop;
+  assign fifo_cancel_o    = fifo_cancel;
 
 endmodule

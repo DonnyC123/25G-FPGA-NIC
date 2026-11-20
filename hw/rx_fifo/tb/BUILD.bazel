@@ -8,6 +8,7 @@ verilog_library(
     visibility = ["//tools:__pkg__"],
     deps = [
         "//hw/common/pkg:pcs_pkg",
+        "//hw/common/pkg:rx_meta_pkg",
         "//hw/rtl_utils/if:axi_stream_if",
         "//hw/rx_fifo/rtl:rx_fifo_ctrl",
     ],
@@ -22,6 +23,7 @@ py_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hw/common/pkg:pcs_pkg_py",
+        "//hw/common/pkg:rx_meta_pkg_py",
         "//hw/tb_utils",
         "//hw/tb_utils/net",
         "//tools/cocotb",

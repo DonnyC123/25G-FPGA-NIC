@@ -5,7 +5,12 @@ verilog_library(
     srcs = ["nic_top.sv"],
     visibility = ["//tools:__pkg__"],
     deps = [
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/common/pkg:rss_pkg",
+        "//hw/nic_regs/rtl:nic_regs",
         "//hw/rtl_utils:rst_sync",
+        "//hw/rtl_utils:shift_reg",
+        "//hw/rtl_utils/if:axi4_lite_if",
         "//hw/rtl_utils/if:axi_stream_if",
         "//hw/rx_pcs/rtl:rx_lock_watchdog",
         "//hw/rx_top/rtl:rx_top",

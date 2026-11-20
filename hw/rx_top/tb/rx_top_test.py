@@ -3,6 +3,10 @@ from enum import Enum, auto
 
 import cocotb
 
+from hw.common.pkg import rss_pkg
+from hw.common.pkg.rx_meta_pkg import RX_META_TYPE_OFF
+from hw.rx_parser.tb.parser_frames import valid_frame
+from hw.rx_rss.tb.rss_model import HashType
 from hw.rx_top.tb.rx_top_test_base import RxTopTestBase
 from hw.tb_utils.net.packets import ETH_MAX_LEN, random_ip_frame
 from hw.tb_utils.net.pcs_blocks import corruptions, encode
@@ -175,3 +179,22 @@ async def test_random_traffic(dut) -> None:
                 await seq.add_garbage(random.randint(1, 65))
                 await tb.relock()
     await tb.finish()
+
+
+@cocotb.test()
+async def test_rss_metadata(dut) -> None:
+    queues = rss_pkg.RSS_MAX_QUEUES
+    reta = [random.randrange(queues) for _ in range(rss_pkg.RETA_SIZE)]
+    tb = await RxTopTestBase.start(
+        dut,
+        key=random.randbytes(rss_pkg.RSS_KEY_BYTES),
+        udp_ports_en=True,
+        reta=reta,
+    )
+    seq = tb.sequence
+    for _ in range(150):
+        await seq.add_frame(valid_frame(), random_lane())
+        await seq.add_idle(random.randint(0, 2))
+    await tb.finish()
+    types = {item[RX_META_TYPE_OFF] for item in tb.monitor.items}
+    assert {HashType.L3, HashType.L4} <= types

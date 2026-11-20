@@ -1,0 +1,13 @@
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "nic_regs",
+    srcs = ["nic_regs.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hw/common/pkg:nic_regs_pkg",
+        "//hw/common/pkg:rss_pkg",
+        "//hw/rtl_utils:handshake_cdc",
+        "//hw/rtl_utils/if:axi4_lite_if",
+    ],
+)

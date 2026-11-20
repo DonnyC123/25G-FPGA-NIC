@@ -4,6 +4,7 @@ from typing import Self
 from cocotb.types import Logic, LogicArray
 
 from hw.common.pkg import pcs_pkg
+from hw.common.pkg.rx_meta_pkg import rx_meta_t
 from hw.tb_utils.abstract_transactions import AbstractTransaction
 from hw.tb_utils.logic import from_logic, to_logic
 
@@ -20,9 +21,14 @@ class RxFifoSequenceItem(AbstractTransaction):
     valid_i: Logic = field(default_factory=lambda: Logic(0))
     last_i: Logic = field(default_factory=lambda: Logic(0))
     drop_i: Logic = field(default_factory=lambda: Logic(0))
+    meta_i: LogicArray = field(
+        default_factory=lambda: LogicArray.from_unsigned(0, rx_meta_t.WIDTH)
+    )
 
     @classmethod
-    def from_bytes(cls, data: bytes, last: bool = False, drop: bool = False) -> Self:
+    def from_bytes(
+        cls, data: bytes, last: bool = False, drop: bool = False, meta: int = 0
+    ) -> Self:
         last_bytes = len(data) if last else 0
         return cls(
             to_logic(data, DATA_W),
@@ -30,6 +36,7 @@ class RxFifoSequenceItem(AbstractTransaction):
             Logic(1),
             Logic(last),
             Logic(drop),
+            LogicArray.from_unsigned(meta, rx_meta_t.WIDTH),
         )
 
     @property

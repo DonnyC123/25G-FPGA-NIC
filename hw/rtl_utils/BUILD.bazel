@@ -11,6 +11,7 @@ RTL_UTILS_DEPS = {
     ],
     "data_pipeline": [],
     "data_status_pipeline": [":data_pipeline"],
+    "handshake_cdc": [":shift_reg"],
     "shift_reg": [],
     "shift_reg_en": [],
     "data_status_shift_reg": [":shift_reg"],

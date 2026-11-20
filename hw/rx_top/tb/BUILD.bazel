@@ -7,6 +7,8 @@ verilog_library(
     srcs = ["rx_top_wrapper.sv"],
     visibility = ["//tools:__pkg__"],
     deps = [
+        "//hw/common/pkg:parser_pkg",
+        "//hw/common/pkg:rss_pkg",
         "//hw/rtl_utils/if:axi_stream_if",
         "//hw/rx_top/rtl:rx_top",
     ],
@@ -14,9 +16,19 @@ verilog_library(
 
 py_library(
     name = "rx_top_tb",
-    srcs = ["rx_top_test_base.py"],
+    srcs = [
+        "rx_top_model.py",
+        "rx_top_test_base.py",
+    ],
     deps = [
+        "//hw/common/pkg:parser_pkg_py",
         "//hw/common/pkg:pcs_pkg_py",
+        "//hw/common/pkg:rss_pkg_py",
+        "//hw/common/pkg:rx_meta_pkg_py",
+        "//hw/rx_csum/tb:rx_csum_tb",
+        "//hw/rx_fifo/tb:rx_fifo_tb",
+        "//hw/rx_parser/tb:rx_parser_tb",
+        "//hw/rx_rss/tb:rx_rss_tb",
         "//hw/tb_utils",
         "//hw/tb_utils/net",
         "//tools/cocotb",

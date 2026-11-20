@@ -1,0 +1,21 @@
+load("@rules_cocotb//cocotb:cocotb_test.bzl", "cocotb_test")
+
+cocotb_test(
+    name = "handshake_cdc_test",
+    srcs = ["handshake_cdc_test.py"],
+    module = "//hw/rtl_utils:handshake_cdc",
+    sim_opts = select({
+        "//:sim_questa": [
+            "-timescale",
+            "1ns/1ps",
+        ],
+        "//:sim_verilator": [
+            "--timescale",
+            "1ns/1ps",
+        ],
+    }),
+    deps = [
+        "//hw/tb_utils",
+        "//tools/cocotb",
+    ],
+)

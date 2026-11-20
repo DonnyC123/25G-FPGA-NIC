@@ -1,0 +1,41 @@
+load("@rules_cocotb//cocotb:cocotb_test.bzl", "cocotb_test")
+load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_verilog//verilog:defs.bzl", "verilog_library")
+
+verilog_library(
+    name = "nic_regs_top",
+    srcs = ["nic_regs_top.sv"],
+    deps = [
+        "//hw/common/pkg:rss_pkg",
+        "//hw/nic_regs/rtl:nic_regs",
+        "//hw/rtl_utils/if:axi4_lite_if",
+    ],
+)
+
+py_library(
+    name = "nic_regs_tb",
+    srcs = ["nic_regs_test_base.py"],
+    deps = [
+        "//hw/common/pkg:nic_regs_pkg_py",
+        "//hw/common/pkg:rss_pkg_py",
+        "//hw/tb_utils",
+        "//tools/cocotb",
+    ],
+)
+
+cocotb_test(
+    name = "nic_regs_test",
+    srcs = ["nic_regs_test.py"],
+    module = ":nic_regs_top",
+    sim_opts = select({
+        "//:sim_questa": [
+            "-timescale",
+            "1ns/1ps",
+        ],
+        "//:sim_verilator": [
+            "--timescale",
+            "1ns/1ps",
+        ],
+    }),
+    deps = [":nic_regs_tb"],
+)

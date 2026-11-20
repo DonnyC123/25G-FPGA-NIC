@@ -5,10 +5,12 @@ from typing import NoReturn, Self
 import cocotb
 from cocotb.triggers import ReadOnly, RisingEdge
 
-from hw.common.pkg import pcs_pkg
+from hw.common.pkg import pcs_pkg, rss_pkg
+from hw.rx_rss.tb.rss_model import DEFAULT_KEY, pack_reta
+from hw.rx_top.tb.rx_top_model import expected_delivery, normalize
 from hw.tb_utils.axi_stream import AxiStreamMonitor, AxiStreamReadyDriver
 from hw.tb_utils.generic_model import GenericModel
-from hw.tb_utils.generic_scoreboard import check_lossy_stream
+from hw.tb_utils.generic_scoreboard import Expected, check_lossy_stream
 from hw.tb_utils.generic_test_base import GenericTestBase
 from hw.tb_utils.net.pcs_raw import PcsRawDriver, PcsRawItem, PcsRawSequence
 from hw.tb_utils.tb_common import initialize_tb, reset_dut
@@ -17,6 +19,7 @@ CLK_PERIODS_PS = {"eth_clk": 2482, "axi_clk": 4000}
 LOCK_CYCLES = 64
 DRAIN_QUIET_CYCLES = 64
 COUNTERS = ("overflow_drops_o", "crc_drops_o", "pcs_drops_o")
+DEFAULT_RETA = [i % rss_pkg.RSS_MAX_QUEUES for i in range(rss_pkg.RETA_SIZE)]
 
 
 class RxTopDriver(PcsRawDriver):
@@ -43,14 +46,28 @@ class RxTopTestBase(
         )
         self.lossless = ready_probability == 1.0
         self.exact_drops = True
+        self.key = DEFAULT_KEY
+        self.udp_ports_en = False
+        self.reta = list(DEFAULT_RETA)
+        self.configure(self.key, self.udp_ports_en)
+        self.set_reta(self.reta)
         self.locked_cycles = 0
         self.base_drops = self.drops()
         cocotb.start_soon(self._track_lock())
 
     @classmethod
-    async def start(cls, dut, ready_probability: float = 1.0) -> Self:
+    async def start(
+        cls,
+        dut,
+        ready_probability: float = 1.0,
+        key: bytes = DEFAULT_KEY,
+        udp_ports_en: bool = False,
+        reta: list[int] | None = None,
+    ) -> Self:
         await initialize_tb(dut, CLK_PERIODS_PS)
         tb = cls(dut, ready_probability)
+        tb.configure(key, udp_ports_en)
+        tb.set_reta(DEFAULT_RETA if reta is None else reta)
         await tb.sequence.add_garbage(random.randrange(pcs_pkg.PCS_BLOCK_W))
         await tb.lock()
         await tb.wait_for_driver_done()
@@ -65,6 +82,16 @@ class RxTopTestBase(
             await ReadOnly()
             quiet = 0 if self.dut.m_axi.valid.value else quiet + 1
         await RisingEdge(self.dut.axi_clk)
+
+    def configure(self, key: bytes, udp_ports_en: bool) -> None:
+        self.key = key
+        self.udp_ports_en = udp_ports_en
+        self.dut.rss_key_i.value = int.from_bytes(key, "big")
+        self.dut.udp_ports_en_i.value = int(udp_ports_en)
+
+    def set_reta(self, reta: list[int]) -> None:
+        self.reta = list(reta)
+        self.dut.reta_i.value = pack_reta(reta)
 
     def drops(self) -> dict[str, int]:
         return {name: int(getattr(self.dut, name).value) for name in COUNTERS}
@@ -109,8 +136,14 @@ class RxTopTestBase(
         self.sequence.required = self.lossless
 
     def check(self) -> None:
-        sent = self.model.items
-        got = self.monitor.items
+        sent = [
+            Expected(
+                expected_delivery(e.data, self.key, self.udp_ports_en, self.reta),
+                e.required,
+            )
+            for e in self.model.items
+        ]
+        got = [normalize(item) for item in self.monitor.items]
         dropped = check_lossy_stream(sent, got, bytes.hex)
         now = self.drops()
         overflow, crc, pcs = (now[name] - self.base_drops[name] for name in COUNTERS)

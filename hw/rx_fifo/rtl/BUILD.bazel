@@ -6,7 +6,10 @@ verilog_library(
     visibility = ["//visibility:public"],
     deps = [
         "//hw/common/pkg:pcs_pkg",
+        "//hw/common/pkg:rx_meta_pkg",
+        "//hw/rtl_utils:async_fifo",
         "//hw/rtl_utils:async_packet_fifo",
+        "//hw/rtl_utils:skid_buffer",
         "//hw/rtl_utils/if:axi_stream_if",
     ],
 )

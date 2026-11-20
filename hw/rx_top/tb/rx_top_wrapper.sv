@@ -1,4 +1,6 @@
-module rx_top_wrapper #(
+module rx_top_wrapper
+  import rss_pkg::*;
+#(
   parameter int DIN_W        = 64,
   parameter int M_AXI_W      = 256,
   parameter int GOOD_COUNT   = 1,
@@ -7,19 +9,23 @@ module rx_top_wrapper #(
   parameter int FIFO_DEPTH   = 64,
   parameter int DROP_COUNT_W = 32
 ) (
-  input  logic                    eth_clk,
-  input  logic                    eth_rst,
-  input  logic                    axi_clk,
-  input  logic                    axi_rst,
-  input  logic [DIN_W-1:0]        raw_data_i,
-  input  logic                    raw_valid_i,
+  input  logic                                  eth_clk,
+  input  logic                                  eth_rst,
+  input  logic                                  axi_clk,
+  input  logic                                  axi_rst,
+  input  logic [DIN_W-1:0]                      raw_data_i,
+  input  logic                                  raw_valid_i,
 
-  output logic                    locked_o,
-  output logic                    bitslip_o,
+  input  logic [RSS_KEY_W-1:0]                  rss_key_i,
+  input  logic                                  udp_ports_en_i,
+  input  logic [RETA_SIZE-1:0][RSS_QUEUE_W-1:0] reta_i,
 
-  output logic [DROP_COUNT_W-1:0] overflow_drops_o,
-  output logic [DROP_COUNT_W-1:0] crc_drops_o,
-  output logic [DROP_COUNT_W-1:0] pcs_drops_o
+  output logic                                  locked_o,
+  output logic                                  bitslip_o,
+
+  output logic [DROP_COUNT_W-1:0]               overflow_drops_o,
+  output logic [DROP_COUNT_W-1:0]               crc_drops_o,
+  output logic [DROP_COUNT_W-1:0]               pcs_drops_o
 );
 
   axi_stream_if #(.DATA_W(M_AXI_W)) m_axi ();
@@ -38,11 +44,17 @@ module rx_top_wrapper #(
       .axi_rst         (axi_rst),
       .raw_data_i      (raw_data_i),
       .raw_valid_i     (raw_valid_i),
+      .rss_key_i       (rss_key_i),
+      .udp_ports_en_i  (udp_ports_en_i),
+      .reta_i          (reta_i),
       .locked_o        (locked_o),
       .bitslip_o       (bitslip_o),
       .overflow_drops_o(overflow_drops_o),
       .crc_drops_o     (crc_drops_o),
       .pcs_drops_o     (pcs_drops_o),
+      .pcs_stream_o    (),
+      .crc_drop_o      (),
+      .fifo_cancel_o   (),
       .m_axi           (m_axi)
   );
 
