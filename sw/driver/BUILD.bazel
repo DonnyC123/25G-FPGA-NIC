@@ -1,3 +1,14 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
+py_test(
+    name = "check_rcs",
+    srcs = ["check_rcs.py"],
+    data = glob([
+        "*.c",
+        "*.h",
+    ]) + [".clang-format-ignore"],
+)
+
 UNLOAD = """
 if grep -q '^eth_xdma ' /proc/modules; then
   sudo rmmod eth_xdma

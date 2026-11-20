@@ -5,20 +5,28 @@
 
 #include "eth_mod.h"
 
-static int rx_clean_skb(struct xdma_rx_ring *rx_ring, int budget) {
-	struct net_device *net_dev;
-	int packets_processed;
-	u32 *ci;
+static enum pkt_hash_types eth_rx_hash_type(u8 hash_type) {
+	switch (hash_type) {
+	case ETH_RX_HASH_L4:
+		return PKT_HASH_TYPE_L4;
+	case ETH_RX_HASH_L3:
+		return PKT_HASH_TYPE_L3;
+	default:
+		return PKT_HASH_TYPE_NONE;
+	}
+}
 
-	net_dev = rx_ring->net_dev;
-	ci = &rx_ring->driver_ci;
+static int rx_clean_skb(struct xdma_rx_ring* rx_ring, int budget) {
+	struct net_device* net_dev = rx_ring->net_dev;
+	u32* ci = &rx_ring->driver_ci;
+	int packets_processed;
 
 	for (packets_processed = 0; packets_processed < budget; packets_processed++) {
-		struct xdma_result *res = &rx_ring->hw_res_ring_virt[*ci];
-		struct xdma_rx_buffer_info *bi = &rx_ring->sw_ring[*ci];
-		struct sk_buff *skb;
-		struct page *page;
-		u32 len;
+		struct xdma_result* res = &rx_ring->hw_res_ring_virt[*ci];
+		struct xdma_rx_buffer_info* bi = &rx_ring->sw_ring[*ci];
+		struct eth_rx_meta* meta;
+		struct sk_buff* skb;
+		struct page* page;
 
 		if (!res->status)
 			break;
@@ -26,38 +34,49 @@ static int rx_clean_skb(struct xdma_rx_ring *rx_ring, int budget) {
 		dma_rmb();
 		res->status = 0;
 
-		len = le32_to_cpu(res->length);
+		u32 dma_len = le32_to_cpu(res->length);
 		page = bi->page;
 		bi->page = NULL;
 		bi->dma = 0;
 
 		*ci = (*ci + 1) % rx_ring->count;
 
-		if (unlikely(len < ETH_HLEN + ETH_FCS_LEN || len > rx_ring->buffer_len)) {
+		if (unlikely((dma_len < ETH_HLEN + ETH_FCS_LEN + sizeof(*meta)) || (dma_len > rx_ring->buffer_len))) {
 			net_dev->stats.rx_errors++;
 			page_pool_recycle_direct(rx_ring->page_pool, page);
 			continue;
 		}
 
-		// The hw checks the FCS and keeps it on the frame
-		len -= ETH_FCS_LEN;
+		dma_sync_single_for_cpu(rx_ring->dev, page_pool_get_dma_addr(page) + RX_HEADROOM, dma_len,
+					DMA_FROM_DEVICE);
 
-		dma_sync_single_for_cpu(rx_ring->dev, page_pool_get_dma_addr(page) + RX_HEADROOM, len, DMA_FROM_DEVICE);
-
+		meta = page_address(page) + RX_HEADROOM;
 		skb = napi_build_skb(page_address(page), PAGE_SIZE);
+
 		if (unlikely(!skb)) {
 			net_dev->stats.rx_dropped++;
 			page_pool_recycle_direct(rx_ring->page_pool, page);
 			continue;
 		}
 
-		skb_reserve(skb, RX_HEADROOM);
-		skb_put(skb, len);
+		// The hw checks the FCS and keeps it on the frame
+		u32 frame_len = dma_len - sizeof(*meta) - ETH_FCS_LEN;
+		skb_reserve(skb, RX_HEADROOM + sizeof(*meta));
+		skb_put(skb, frame_len);
 		skb_mark_for_recycle(skb);
 		skb->protocol = eth_type_trans(skb, net_dev);
 
+		if ((net_dev->features & NETIF_F_RXHASH) && (meta->hash_type != ETH_RX_HASH_NONE)) {
+			skb_set_hash(skb, le32_to_cpu(meta->hash), eth_rx_hash_type(meta->hash_type));
+		}
+
+		if (net_dev->features & NETIF_F_RXCSUM) {
+			skb->ip_summed = CHECKSUM_COMPLETE;
+			skb->csum = csum_unfold(meta->csum);
+		}
+
 		net_dev->stats.rx_packets++;
-		net_dev->stats.rx_bytes += len;
+		net_dev->stats.rx_bytes += frame_len;
 
 		napi_gro_receive(&rx_ring->napi, skb);
 	}
@@ -65,11 +84,11 @@ static int rx_clean_skb(struct xdma_rx_ring *rx_ring, int budget) {
 	return packets_processed;
 }
 
-static u32 tx_free_slots(const struct xdma_tx_ring *tx_ring) {
+static u32 tx_free_slots(const struct xdma_tx_ring* tx_ring) {
 	return (tx_ring->driver_ci + tx_ring->count - tx_ring->driver_pi - 1) % tx_ring->count;
 }
 
-static void tx_unmap_desc(struct xdma_tx_ring *tx_ring, struct xdma_tx_buffer_info *bi) {
+static void tx_unmap_desc(struct xdma_tx_ring* tx_ring, struct xdma_tx_buffer_info* bi) {
 	if (bi->is_page)
 		dma_unmap_page(tx_ring->dev, bi->dma, bi->dma_len, DMA_TO_DEVICE);
 	else if (!bi->is_meta)
@@ -78,8 +97,8 @@ static void tx_unmap_desc(struct xdma_tx_ring *tx_ring, struct xdma_tx_buffer_in
 	memset(bi, 0, sizeof(*bi));
 }
 
-static void tx_fill_meta(struct xdma_tx_ring *tx_ring, u32 idx, const struct sk_buff *skb) {
-	struct eth_tx_meta *meta = &tx_ring->meta_virt[idx];
+static void tx_fill_meta(struct xdma_tx_ring* tx_ring, u32 idx, const struct sk_buff* skb) {
+	struct eth_tx_meta* meta = &tx_ring->meta_virt[idx];
 
 	memset(meta, 0, sizeof(*meta));
 	if (skb->ip_summed == CHECKSUM_PARTIAL) {
@@ -94,8 +113,8 @@ static void tx_fill_meta(struct xdma_tx_ring *tx_ring, u32 idx, const struct sk_
 			 sizeof(*meta), false);
 }
 
-static void tx_fill_desc(struct xdma_tx_ring *tx_ring, u32 idx, dma_addr_t dma, u32 len, bool is_page, bool eop) {
-	struct xdma_tx_buffer_info *bi = &tx_ring->sw_ring[idx];
+static void tx_fill_desc(struct xdma_tx_ring* tx_ring, u32 idx, dma_addr_t dma, u32 len, bool is_page, bool eop) {
+	struct xdma_tx_buffer_info* bi = &tx_ring->sw_ring[idx];
 
 	bi->dma = dma;
 	bi->dma_len = len;
@@ -106,7 +125,7 @@ static void tx_fill_desc(struct xdma_tx_ring *tx_ring, u32 idx, dma_addr_t dma, 
 
 // Maps the metadata, the head and each fragment to its own descriptor. Returns
 // the number of descriptors used, or a negative errno with nothing left mapped.
-static int tx_map_skb(struct xdma_tx_ring *tx_ring, struct sk_buff *skb) {
+static int tx_map_skb(struct xdma_tx_ring* tx_ring, struct sk_buff* skb) {
 	u32 nr_frags = skb_shinfo(skb)->nr_frags;
 	u32 headlen = skb_headlen(skb);
 	u32 idx = tx_ring->driver_pi;
@@ -128,7 +147,7 @@ static int tx_map_skb(struct xdma_tx_ring *tx_ring, struct sk_buff *skb) {
 	}
 
 	for (u32 i = 0; i < nr_frags; i++) {
-		const skb_frag_t *frag = &skb_shinfo(skb)->frags[i];
+		const skb_frag_t* frag = &skb_shinfo(skb)->frags[i];
 		u32 frag_len = skb_frag_size(frag);
 
 		dma = skb_frag_dma_map(tx_ring->dev, frag, 0, frag_len, DMA_TO_DEVICE);
@@ -153,27 +172,23 @@ err_unmap:
 	return -ENOMEM;
 }
 
-static u32 tx_new_completions(const struct xdma_tx_ring *tx_ring) {
+static u32 tx_new_completions(const struct xdma_tx_ring* tx_ring) {
 	u32 count = le32_to_cpu(READ_ONCE(tx_ring->hw_wb_compl_virt->completed_desc_count));
 
 	return (count - tx_ring->last_hw_completed) & XDMA_WB_COUNT_MASK;
 }
 
-static int tx_clean_skb(struct xdma_tx_ring *tx_ring, int budget) {
-	int packets_processed;
+static int tx_clean_skb(struct xdma_tx_ring* tx_ring, int budget) {
+	u32* ci = &tx_ring->driver_ci;
+	int packets_processed = 0;
+	u32 descs_processed = 0;
 	u32 newly_completed;
-	u32 descs_processed;
-	u32 *ci;
 
-	ci = &tx_ring->driver_ci;
-
-	packets_processed = 0;
-	descs_processed = 0;
 	spin_lock_bh(&tx_ring->lock);
 	newly_completed = tx_new_completions(tx_ring);
 	while (descs_processed < newly_completed && packets_processed < budget) {
-		struct xdma_tx_buffer_info *bi = &tx_ring->sw_ring[*ci];
-		struct sk_buff *skb = bi->skb;
+		struct xdma_tx_buffer_info* bi = &tx_ring->sw_ring[*ci];
+		struct sk_buff* skb = bi->skb;
 
 		tx_unmap_desc(tx_ring, bi);
 
@@ -190,28 +205,23 @@ static int tx_clean_skb(struct xdma_tx_ring *tx_ring, int budget) {
 	return packets_processed;
 }
 
-static int rx_refill_skb(struct xdma_rx_ring *rx_ring) {
-	struct engine_sgdma_regs *sgdma;
+static int rx_refill_skb(struct xdma_rx_ring* rx_ring) {
+	struct engine_sgdma_regs* sgdma = rx_ring->c2h_engine->sgdma_regs;
+	u32* ci = &rx_ring->driver_ci;
+	u32* pi = &rx_ring->driver_pi;
 	int packets_processed = 0;
 	int rv = 0;
-	u32 *ci, *pi;
 	u32 w;
 
-	sgdma = rx_ring->c2h_engine->sgdma_regs;
-	ci = &rx_ring->driver_ci;
-	pi = &rx_ring->driver_pi;
-
 	while (((*pi + 1) % rx_ring->count) != *ci) {
-		struct xdma_rx_buffer_info *bi = &rx_ring->sw_ring[*pi];
-		struct page *page;
-
-		page = page_pool_dev_alloc_pages(rx_ring->page_pool);
+		struct page* page = page_pool_dev_alloc_pages(rx_ring->page_pool);
 		if (unlikely(!page)) {
 			pr_err_ratelimited("Failed to allocate page (idx=%u)\n", *pi);
 			rv = -ENOMEM;
 			break;
 		}
 
+		struct xdma_rx_buffer_info* bi = &rx_ring->sw_ring[*pi];
 		bi->page = page;
 		bi->dma = page_pool_get_dma_addr(page) + RX_HEADROOM;
 		rx_xdma_desc_set(rx_ring, *pi, bi->dma, rx_ring->buffer_len);
@@ -222,20 +232,17 @@ static int rx_refill_skb(struct xdma_rx_ring *rx_ring) {
 
 	dma_wmb();
 	w = cpu_to_le32(packets_processed);
-	dbg_tfr("iowrite32(0x%08x to 0x%p) (credits)\n", w, (void *)&sgdma->credits);
+	dbg_tfr("iowrite32(0x%08x to 0x%p) (credits)\n", w, (void*)&sgdma->credits);
 	write_register(w, &sgdma->credits, (unsigned long)&sgdma->credits - (unsigned long)sgdma);
 
 	return rv;
 }
 
-int rx_napi_poll(struct napi_struct *napi, int weight) {
-	struct xdma_rx_ring *rx_ring;
-	struct engine_regs *regs;
+int rx_napi_poll(struct napi_struct* napi, int weight) {
+	struct xdma_rx_ring* rx_ring = container_of(napi, struct xdma_rx_ring, napi);
+	struct engine_regs* regs = rx_ring->c2h_engine->regs;
 	int packets_processed;
 	int rv_refill;
-
-	rx_ring = container_of(napi, struct xdma_rx_ring, napi);
-	regs = rx_ring->c2h_engine->regs;
 
 	packets_processed = rx_clean_skb(rx_ring, weight);
 	rv_refill = rx_refill_skb(rx_ring);
@@ -253,13 +260,10 @@ int rx_napi_poll(struct napi_struct *napi, int weight) {
 	return packets_processed;
 }
 
-int tx_napi_poll(struct napi_struct *napi, int weight) {
-	struct xdma_tx_ring *tx_ring;
-	struct engine_regs *regs;
+int tx_napi_poll(struct napi_struct* napi, int weight) {
+	struct xdma_tx_ring* tx_ring = container_of(napi, struct xdma_tx_ring, napi);
+	struct engine_regs* regs = tx_ring->h2c_engine->regs;
 	int packets_processed;
-
-	tx_ring = container_of(napi, struct xdma_tx_ring, napi);
-	regs = tx_ring->h2c_engine->regs;
 
 	packets_processed = tx_clean_skb(tx_ring, weight);
 
@@ -280,11 +284,10 @@ int tx_napi_poll(struct napi_struct *napi, int weight) {
 	return packets_processed;
 }
 
-static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_dev) {
-	struct net_device_priv *xndev = netdev_priv(net_dev);
-	struct xdma_tx_ring *tx_ring = xndev->tx_ring;
-	struct engine_sgdma_regs *sgdma = tx_ring->h2c_engine->sgdma_regs;
-	struct net_device_stats *stats = &net_dev->stats;
+static netdev_tx_t eth_xmit_frame(struct sk_buff* skb, struct net_device* net_dev) {
+	struct net_device_priv* xndev = netdev_priv(net_dev);
+	struct net_device_stats* stats = &net_dev->stats;
+	struct xdma_tx_ring* tx_ring = xndev->tx_ring;
 	int nr_desc;
 	int len;
 
@@ -320,6 +323,7 @@ static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_de
 	// Ensure the descriptors are visible to the device before granting credit
 	dma_wmb();
 
+	struct engine_sgdma_regs* sgdma = tx_ring->h2c_engine->sgdma_regs;
 	write_register(cpu_to_le32(nr_desc), &sgdma->credits, (unsigned long)&sgdma->credits - (unsigned long)sgdma);
 
 	spin_unlock_bh(&tx_ring->lock);
@@ -331,10 +335,8 @@ static netdev_tx_t eth_xmit_frame(struct sk_buff *skb, struct net_device *net_de
 	return NETDEV_TX_OK;
 }
 
-static int eth_up(struct net_device_priv *xndev) {
-	int rv;
-
-	rv = configure_rx(xndev);
+static int eth_up(struct net_device_priv* xndev) {
+	int rv = configure_rx(xndev);
 	if (rv) {
 		pr_err("Failed to configure rx ring");
 		return rv;
@@ -350,18 +352,16 @@ static int eth_up(struct net_device_priv *xndev) {
 	return 0;
 }
 
-static int eth_open(struct net_device *net_dev) {
-	struct net_device_priv *xndev;
-	int rv;
-
-	xndev = netdev_priv(net_dev);
+static int eth_open(struct net_device* net_dev) {
+	struct net_device_priv* xndev = netdev_priv(net_dev);
 	if (!xndev) {
 		pr_info("net_dev 0x%p no valid net_device_priv.\n", net_dev);
 		return -EINVAL;
 	}
 
 	netif_carrier_off(net_dev);
-	if ((rv = eth_up(xndev))) {
+	int rv = eth_up(xndev);
+	if (rv) {
 		netdev_err(net_dev, "Cannot open interface, aborting\n");
 		return rv;
 	}
@@ -369,19 +369,16 @@ static int eth_open(struct net_device *net_dev) {
 	return 0;
 }
 
-static int eth_close(struct net_device *net_dev) {
-	struct net_device_priv *xndev = netdev_priv(net_dev);
-	struct xdma_rx_ring *rx_ring;
-	struct xdma_tx_ring *tx_ring;
-
+static int eth_close(struct net_device* net_dev) {
+	struct net_device_priv* xndev = netdev_priv(net_dev);
 	if (!xndev)
 		return -EINVAL;
 
 	netif_carrier_off(net_dev);
 	netif_tx_disable(net_dev);
 
-	tx_ring = xndev->tx_ring;
-	rx_ring = xndev->rx_ring;
+	struct xdma_tx_ring* tx_ring = xndev->tx_ring;
+	struct xdma_rx_ring* rx_ring = xndev->rx_ring;
 
 	if (tx_ring && tx_ring->h2c_engine) {
 		stop_tx_sgdma(tx_ring);
@@ -392,8 +389,8 @@ static int eth_close(struct net_device *net_dev) {
 		u32 ci = tx_ring->driver_ci;
 		u32 pi = tx_ring->driver_pi;
 		while (ci != pi) {
-			struct xdma_tx_buffer_info *bi = &tx_ring->sw_ring[ci];
-			struct sk_buff *skb = bi->skb;
+			struct xdma_tx_buffer_info* bi = &tx_ring->sw_ring[ci];
+			struct sk_buff* skb = bi->skb;
 
 			tx_unmap_desc(tx_ring, bi);
 			if (skb)

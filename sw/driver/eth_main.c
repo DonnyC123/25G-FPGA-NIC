@@ -94,7 +94,7 @@ static const struct pci_device_id pci_ids[] = {
 
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
-static void init_net_dev_priv(struct net_device_priv *xndev, struct pci_dev *pdev) {
+static void init_net_dev_priv(struct net_device_priv* xndev, struct pci_dev* pdev) {
 	memset(xndev, 0, sizeof(*xndev));
 
 	xndev->magic = MAGIC_DEVICE;
@@ -106,20 +106,18 @@ static void init_net_dev_priv(struct net_device_priv *xndev, struct pci_dev *pde
 	xpdev_cnt++;
 }
 
-static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id) {
-	struct net_device *net_dev;
-	struct net_device_priv *xndev;
-	struct xdma_dev *xdev;
-	void *hndl = NULL;
-	int rv;
+static int probe_one(struct pci_dev* pdev, const struct pci_device_id* id) {
 	const unsigned char my_mac_addr[ETH_ALEN] = {0x00, 0x0A, 0x35, 0x01, 0x02, 0x03};
+	struct xdma_dev* xdev;
+	void* hndl = NULL;
+	int rv;
 
 	pr_info("My driver: Found a matching device!\n");
-	net_dev = alloc_etherdev(sizeof(*xndev));
+	struct net_device* net_dev = alloc_etherdev(sizeof(struct net_device_priv));
 	if (!net_dev)
 		return -ENOMEM;
 
-	xndev = netdev_priv(net_dev);
+	struct net_device_priv* xndev = netdev_priv(net_dev);
 	init_net_dev_priv(xndev, pdev);
 	xndev->net_dev = net_dev;
 
@@ -180,9 +178,13 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id) {
 
 	net_dev->netdev_ops = &netdev_ops;
 	net_dev->watchdog_timeo = WATCHDOG_PERIOD;
+	// tx features
 	net_dev->hw_features |= TX_CSUM_FEATURES;
 	net_dev->features |= TX_CSUM_FEATURES;
 	net_dev->vlan_features |= TX_CSUM_FEATURES;
+	// rx features
+	net_dev->hw_features |= NETIF_F_RXCSUM | NETIF_F_RXHASH;
+	net_dev->features |= NETIF_F_RXCSUM | NETIF_F_RXHASH;
 
 	eth_hw_addr_set(net_dev, my_mac_addr);
 
@@ -227,16 +229,13 @@ err_out:
 	return rv;
 }
 
-static void remove_one(struct pci_dev *pdev) {
-	struct net_device *net_dev = pci_get_drvdata(pdev);
-	struct net_device_priv *xndev;
-	struct xdma_dev *xdev;
-
+static void remove_one(struct pci_dev* pdev) {
+	struct net_device* net_dev = pci_get_drvdata(pdev);
 	if (!net_dev)
 		return;
 
-	xndev = netdev_priv(net_dev);
-	xdev = xndev->xdev;
+	struct net_device_priv* xndev = netdev_priv(net_dev);
+	struct xdma_dev* xdev = xndev->xdev;
 
 	unregister_netdev(net_dev);
 

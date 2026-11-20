@@ -15,7 +15,7 @@ AlignAfterOpenBracket: Align
 AlignConsecutiveMacros: Consecutive
 AlignEscapedNewlines: Left
 IndentCaseLabels: false
-PointerAlignment: Right
+PointerAlignment: Left
 SortIncludes: Never
 ForEachMacros:
   - list_for_each
