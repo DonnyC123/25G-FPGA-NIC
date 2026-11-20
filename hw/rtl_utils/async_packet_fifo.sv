@@ -92,8 +92,11 @@ module async_packet_fifo #(
   logic       [RD_DATA_W-1:0] rd_data_q;
 
   always_comb begin
-    full       = bin_to_gray(wr_addr_q) == (rd_addr_sync[SYNC_DEPTH-1] ^ FULL_GRAY_XOR);
-    empty      = rd_addr_gray_q == commit_addr_sync[SYNC_DEPTH-1];
+    full  = bin_to_gray(wr_addr_q) == (rd_addr_sync[SYNC_DEPTH-1] ^ FULL_GRAY_XOR);
+    empty = rd_addr_gray_q == commit_addr_sync[SYNC_DEPTH-1];
+  end
+
+  always_comb begin
     wr_en      = valid_i && !full && !revert_i;
     rd_en      = ready_i && !empty;
 

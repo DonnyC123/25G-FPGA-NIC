@@ -39,7 +39,7 @@ module skid_buffer #(
         out_valid_d  = 1'b1;
         skid_valid_d = 1'b0;
       end
-    end else if (valid_i && ready_o) begin
+    end else if (valid_i && !skid_valid_q) begin
       skid_data_d  = data_i;
       skid_valid_d = 1'b1;
     end

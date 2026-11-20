@@ -34,8 +34,8 @@ module async_fifo #(
     $error("FIFO_DEPTH must be a power of two >= 2, got %0d", FIFO_DEPTH);
   end
 
-  (* ram_style = "distributed" *)
   logic  [DATA_W-1:0] fifo_mem    [FIFO_DEPTH];
+  logic  [DATA_W-1:0] rd_data_q;
 
   logic               full;
   logic               empty;
@@ -52,8 +52,11 @@ module async_fifo #(
   addr_t              rd_addr_sync[SYNC_DEPTH];
 
   always_comb begin
-    full      = wr_addr_gray_q == (rd_addr_sync[SYNC_DEPTH-1] ^ FULL_GRAY_XOR);
-    empty     = rd_addr_gray_q == wr_addr_sync[SYNC_DEPTH-1];
+    full  = wr_addr_gray_q == (rd_addr_sync[SYNC_DEPTH-1] ^ FULL_GRAY_XOR);
+    empty = rd_addr_gray_q == wr_addr_sync[SYNC_DEPTH-1];
+  end
+
+  always_comb begin
     wr_en     = valid_i && !full;
     rd_en     = ready_i && !empty;
 
@@ -87,6 +90,10 @@ module async_fifo #(
     end
   end
 
+  always_ff @(posedge rd_clk) begin
+    rd_data_q <= fifo_mem[rd_addr_d.addr];
+  end
+
   shift_reg #(
       .DATA_W    ($bits(addr_t)),
       .PIPE_DEPTH(SYNC_DEPTH)
@@ -110,7 +117,7 @@ module async_fifo #(
   always_comb begin
     ready_o = !full;
     valid_o = !empty;
-    data_o  = fifo_mem[rd_addr_q.addr];
+    data_o  = rd_data_q;
   end
 
 endmodule
