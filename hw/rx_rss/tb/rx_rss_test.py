@@ -6,7 +6,7 @@ from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
 from scapy.packet import Packet
 
-from hw.common.pkg import parser_pkg as pkg
+from hw.common.pkg import rss_pkg as pkg
 from hw.rx_parser.tb.parser_frames import KNOWN_FRAMES, valid_frame
 from hw.rx_rss.tb.rss_model import DEFAULT_KEY, MS_VECTORS, toeplitz, vector_input
 from hw.rx_rss.tb.rx_rss_test_base import RxRssTestBase
@@ -90,6 +90,5 @@ async def test_reta_reprogram(dut) -> None:
     for _ in range(3):
         for _ in range(50):
             await seq.add_frame(stream(valid_frame()))
-        await seq.add_idle(pkg.RX_RSS_LATENCY + 2)
         await tb.program_reta(random_reta())
     await tb.finish()

@@ -2,43 +2,39 @@ module l4_parser
   import pcs_pkg::*;
   import parser_pkg::*;
 (
-  input  logic                                    clk,
-  input  logic                                    rst,
-  input  rx_eth_stream_t                          eth_stream_i,
-  input  logic           [OFF_W-LAST_BYTES_W-1:0] word_idx_i,
-  input  logic                                    hdr_done_i,
-  input  logic           [IP_PROTO_W-1:0]         proto_i,
-  input  logic                                    frag_i,
-  input  logic           [OFF_W-1:0]              l4_pos_i,
-  output rx_eth_stream_t                          eth_stream_o,
-  output logic           [OFF_W-LAST_BYTES_W-1:0] word_idx_o,
-  output logic                                    hdr_done_o,
-  output logic           [PORT_W-1:0]             src_port_o,
-  output logic           [PORT_W-1:0]             dst_port_o,
-  output logic           [IP_PROTO_W-1:0]         proto_o
+  input  logic                            clk,
+  input  logic                            rst,
+  input  rx_eth_stream_t                  eth_stream_i,
+  input  rx_word_idx_t                    word_idx_i,
+  input  logic                            hdr_done_i,
+  input  logic           [IP_PROTO_W-1:0] proto_i,
+  input  logic                            frag_i,
+  input  rx_off_t                         l4_pos_i,
+  output rx_eth_stream_t                  eth_stream_o,
+  output logic                            hdr_done_o,
+  output logic           [PORT_W-1:0]     src_port_o,
+  output logic           [PORT_W-1:0]     dst_port_o,
+  output logic           [IP_PROTO_W-1:0] proto_o
 );
 
-  localparam int WORD_IDX_W = OFF_W - LAST_BYTES_W;
+  localparam rx_off_t SRC_REL = RX_OFF_W'(L4_SRC_PORT_OFF);
+  localparam rx_off_t DST_REL = RX_OFF_W'(L4_DST_PORT_OFF);
 
-  localparam logic [OFF_W-1:0] SRC_REL = OFF_W'(L4_SRC_PORT_OFF);
-  localparam logic [OFF_W-1:0] DST_REL = OFF_W'(L4_DST_PORT_OFF);
+  rx_off_t                         pos;
+  logic                            lane_valid;
+  logic           [BYTE_W-1:0]     lane_data;
+  logic                            has_ports;
 
-  logic [OFF_W-1:0]      pos;
-  logic                  lane_valid;
-  logic [BYTE_W-1:0]     lane_data;
-  logic                  has_ports;
+  logic           [PORT_W-1:0]     src_port_d;
+  logic           [PORT_W-1:0]     src_port_q;
+  logic           [PORT_W-1:0]     dst_port_d;
+  logic           [PORT_W-1:0]     dst_port_q;
+  logic                            seen_d;
+  logic                            seen_q;
+  logic           [IP_PROTO_W-1:0] proto_q;
 
-  logic [PORT_W-1:0]     src_port_d;
-  logic [PORT_W-1:0]     src_port_q;
-  logic [PORT_W-1:0]     dst_port_d;
-  logic [PORT_W-1:0]     dst_port_q;
-  logic                  seen_d;
-  logic                  seen_q;
-  logic [IP_PROTO_W-1:0] proto_q;
-
-  rx_eth_stream_t        stream_q;
-  logic                  stream_valid_q;
-  logic [WORD_IDX_W-1:0] stream_idx_q;
+  rx_eth_stream_t                  stream_q;
+  logic                            stream_valid_q;
 
   always_comb begin
     has_ports = hdr_done_i && !frag_i && (proto_i == IP_PROTO_TCP || proto_i == IP_PROTO_UDP);
@@ -90,11 +86,10 @@ module l4_parser
   end
 
   always_ff @(posedge clk) begin
-    src_port_q   <= src_port_d;
-    dst_port_q   <= dst_port_d;
-    proto_q      <= proto_i;
-    stream_q     <= eth_stream_i;
-    stream_idx_q <= word_idx_i;
+    src_port_q <= src_port_d;
+    dst_port_q <= dst_port_d;
+    proto_q    <= proto_i;
+    stream_q   <= eth_stream_i;
   end
 
   always_comb begin
@@ -102,7 +97,6 @@ module l4_parser
     eth_stream_o.valid = stream_valid_q;
   end
 
-  assign word_idx_o = stream_idx_q;
   assign hdr_done_o = seen_q;
   assign src_port_o = src_port_q;
   assign dst_port_o = dst_port_q;

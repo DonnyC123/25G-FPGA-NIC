@@ -2,29 +2,27 @@ from typing import Self
 
 from cocotb.types import LogicArray
 
-from hw.common.pkg import parser_pkg as pkg
-from hw.rx_rss.tb.rss_model import DEFAULT_KEY, RxRssModel
+from hw.common.pkg import rss_pkg as pkg
+from hw.rx_rss.tb.rss_model import DEFAULT_KEY, RetaTable, RxRssModel, pack_reta
 from hw.rx_rss.tb.rx_rss_monitor import RxRssMonitor
-from hw.rx_rss.tb.rx_rss_sequence import RxRssSequence
-from hw.rx_rss.tb.rx_rss_sequence_item import RxRssSequenceItem
 from hw.rx_rss.tb.rx_rss_transaction import RxRssTransaction
 from hw.tb_utils.generic_driver import GenericDriver
 from hw.tb_utils.generic_test_base import GenericTestBase
-from hw.tb_utils.rx_eth_stream import describe
+from hw.tb_utils.rx_eth_stream import RxEthStreamItem, RxEthStreamSequence, describe
 from hw.tb_utils.tb_common import initialize_tb
 
 DEFAULT_RETA = [i % pkg.RSS_MAX_QUEUES for i in range(pkg.RETA_SIZE)]
 
 
 class RxRssTestBase(
-    GenericTestBase[GenericDriver, RxRssSequence, RxRssMonitor, RxRssModel]
+    GenericTestBase[GenericDriver, RxEthStreamSequence, RxRssMonitor, RxRssModel]
 ):
     def __init__(self, dut) -> None:
         super().__init__(
             dut,
             driver=GenericDriver,
-            sequence_item=RxRssSequenceItem,
-            sequence=RxRssSequence,
+            sequence_item=RxEthStreamItem,
+            sequence=RxEthStreamSequence,
             monitor=RxRssMonitor,
             output_transaction=RxRssTransaction,
             model=RxRssModel,
@@ -54,8 +52,12 @@ class RxRssTestBase(
         self.model.udp_ports_en = udp_ports_en
 
     async def program_reta(self, reta: list[int]) -> None:
-        for addr, queue in enumerate(reta):
-            await self.sequence.add_reta_write(addr, queue)
+        await self.sequence.add_idle(pkg.RX_RSS_LATENCY + 2)
+        await self.wait_for_driver_done()
+        self.dut.reta_i.value = LogicArray.from_unsigned(
+            pack_reta(reta), pkg.RETA_SIZE * pkg.RSS_QUEUE_W
+        )
+        await self.sequence.notify_subscribers(RetaTable(tuple(reta)))
 
     def check(self) -> None:
         self.scoreboard.check(describe)

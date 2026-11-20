@@ -1,6 +1,7 @@
 module rx_rss_top
   import pcs_pkg::*;
   import parser_pkg::*;
+  import rss_pkg::*;
 (
   input  logic                          clk,
   input  logic                          rst,
@@ -13,9 +14,7 @@ module rx_rss_top
 
   input  logic [RSS_KEY_W-1:0]          rss_key_i,
   input  logic                          udp_ports_en_i,
-  input  logic                          reta_we_i,
-  input  logic [RETA_ADDR_W-1:0]        reta_addr_i,
-  input  logic [RSS_QUEUE_W-1:0]        reta_queue_i,
+  input  logic [RETA_SIZE*RSS_QUEUE_W-1:0] reta_i,
 
   output logic [ETH_DATA_W-1:0]         out_data_o,
   output logic [LAST_BYTES_W-1:0]       out_last_bytes_o,
@@ -44,9 +43,7 @@ module rx_rss_top
       .eth_stream_i  (eth_stream_in),
       .rss_key_i     (rss_key_i),
       .udp_ports_en_i(udp_ports_en_i),
-      .reta_we_i     (reta_we_i),
-      .reta_addr_i   (reta_addr_i),
-      .reta_queue_i  (reta_queue_i),
+      .reta_i        (reta_i),
       .eth_stream_o  (eth_stream_out),
       .rss_valid_o   (rss_valid_o),
       .rss_o         (rss)

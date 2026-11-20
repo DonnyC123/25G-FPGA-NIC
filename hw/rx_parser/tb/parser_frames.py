@@ -177,6 +177,12 @@ SCAPY_DIFFERS_FRAMES = [
 
 KNOWN_FRAMES = [
     Ether() / IP() / TCP(),
+    Ether() / IP(version=5) / TCP(),
+    Ether() / IP(ihl=4) / TCP(),
+    Ether() / IP(ihl=0) / UDP(),
+    Ether() / Dot1Q() / IP(version=6) / UDP(),
+    Ether() / IPv6(version=4) / TCP(),
+    Ether() / Dot1Q() / IPv6(version=0) / UDP(),
     Ether() / IP() / TCP(options=TCP_OPTS) / Raw(b"x" * 1400),
     Ether() / IP(options=[IPOption_NOP()] * 4) / TCP(),
     Ether()

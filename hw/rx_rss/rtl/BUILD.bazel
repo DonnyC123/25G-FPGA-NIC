@@ -7,6 +7,7 @@ verilog_library(
     deps = [
         "//hw/common/pkg:parser_pkg",
         "//hw/common/pkg:pcs_pkg",
+        "//hw/common/pkg:rss_pkg",
         "//hw/rtl_utils:data_status_pipeline",
         "//hw/rx_parser/rtl:rx_parser",
     ],

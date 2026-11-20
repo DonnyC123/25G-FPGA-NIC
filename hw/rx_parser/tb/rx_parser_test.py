@@ -69,6 +69,16 @@ async def test_back_to_back_frames(dut) -> None:
 
 
 @cocotb.test()
+async def test_runt_after_frame(dut) -> None:
+    tb = await RxParserTestBase.start(dut)
+    seq = tb.sequence
+    for _ in range(100):
+        await seq.add_frame(stream(valid_frame()))
+        await seq.add_frame(random.randbytes(random.randint(1, 12)))
+    await tb.finish()
+
+
+@cocotb.test()
 async def test_bubbles(dut) -> None:
     tb = await RxParserTestBase.start(dut)
     seq = tb.sequence

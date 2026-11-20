@@ -42,14 +42,19 @@ def parse(stream: bytes) -> ParseResult:
     ip = pkg.ETH_TYPE_OFF + pkg.ETHERTYPE_BYTES + pkg.VLAN_TAG_BYTES * vlans
 
     if ethertype == pkg.ETHERTYPE_IPV4:
+        ver_ihl = stream[ip + pkg.IPV4_VER_IHL_OFF]
+        ihl = ver_ihl & 0xF
+        if ver_ihl >> 4 != pkg.IPV4_VERSION or ihl < pkg.IPV4_MIN_IHL:
+            return ParseResult()
         addr = ip + pkg.IPV4_ADDR_OFF
         src = stream[addr : addr + pkg.IPV4_ADDR_LEN]
         dst = stream[addr + pkg.IPV4_ADDR_LEN : addr + 2 * pkg.IPV4_ADDR_LEN]
         proto = stream[ip + pkg.IPV4_PROTO_OFF]
         frag = (be16(ip + pkg.IPV4_FRAG_OFF) & pkg.IPV4_FRAG_MASK) != 0
-        ihl = stream[ip + pkg.IPV4_VER_IHL_OFF] & 0xF
         l4 = ip + (ihl << pkg.IPV4_IHL_SHIFT)
     elif ethertype == pkg.ETHERTYPE_IPV6:
+        if stream[ip + pkg.IPV6_VER_OFF] >> 4 != pkg.IPV6_VERSION:
+            return ParseResult()
         addr = ip + pkg.IPV6_ADDR_OFF
         src = stream[addr : addr + pkg.IPV6_ADDR_LEN]
         dst = stream[addr + pkg.IPV6_ADDR_LEN : addr + 2 * pkg.IPV6_ADDR_LEN]

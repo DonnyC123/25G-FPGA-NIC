@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from cocotb.types import Logic, LogicArray
 
-from hw.common.pkg.parser_pkg import rss_meta_t
+from hw.common.pkg.rss_pkg import rss_meta_t
 from hw.tb_utils.rx_eth_stream import RxEthOutTransaction, RxEthOutWord
 
 

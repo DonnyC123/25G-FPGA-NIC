@@ -1,18 +1,17 @@
 module rx_rss
   import pcs_pkg::*;
   import parser_pkg::*;
+  import rss_pkg::*;
 (
-  input  logic                             clk,
-  input  logic                             rst,
-  input  rx_eth_stream_t                   eth_stream_i,
-  input  logic           [RSS_KEY_W-1:0]   rss_key_i,
-  input  logic                             udp_ports_en_i,
-  input  logic                             reta_we_i,
-  input  logic           [RETA_ADDR_W-1:0] reta_addr_i,
-  input  logic           [RSS_QUEUE_W-1:0] reta_queue_i,
-  output rx_eth_stream_t                   eth_stream_o,
-  output logic                             rss_valid_o,
-  output rss_meta_t                        rss_o
+  input  logic                                            clk,
+  input  logic                                            rst,
+  input  rx_eth_stream_t                                  eth_stream_i,
+  input  logic           [RSS_KEY_W-1:0]                  rss_key_i,
+  input  logic                                            udp_ports_en_i,
+  input  logic           [RETA_SIZE-1:0][RSS_QUEUE_W-1:0] reta_i,
+  output rx_eth_stream_t                                  eth_stream_o,
+  output logic                                            rss_valid_o,
+  output rss_meta_t                                       rss_o
 );
 
   localparam int GROUP_BITS  = RSS_TUPLE_W / RSS_HASH_GROUPS;
@@ -40,9 +39,7 @@ module rx_rss
   logic           [RSS_HASH_W-1:0]                      hash_d;
   logic           [RSS_HASH_W-1:0]                      hash_q;
 
-  logic           [RSS_QUEUE_W-1:0]                     reta_q         [RETA_SIZE];
-
-  rss_meta_t                                            rss_d;
+  rss_meta_t                                           rss_d;
   rss_meta_t                                            rss_q;
   logic                                                 rss_valid_q;
 
@@ -114,12 +111,6 @@ module rx_rss
       .status_o(hash_valid)
   );
 
-  always_ff @(posedge clk) begin
-    if (reta_we_i) begin
-      reta_q[reta_addr_i] <= reta_queue_i;
-    end
-  end
-
   always_comb begin
     rss_d.hash_type = hash_type;
     rss_d.hash      = '0;
@@ -127,7 +118,7 @@ module rx_rss
 
     if (hash_type != RSS_HASH_NONE) begin
       rss_d.hash     = hash_q;
-      rss_d.rx_queue = reta_q[hash_q[RETA_ADDR_W-1:0]];
+      rss_d.rx_queue = reta_i[hash_q[RETA_ADDR_W-1:0]];
     end
   end
 

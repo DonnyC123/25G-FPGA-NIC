@@ -11,7 +11,7 @@ from hw.tb_utils.rx_eth_stream import frames
 
 
 def expected_csum(frame: bytes) -> int:
-    return ones_sum(frame[pkg.RX_CSUM_START : len(frame) - pkg.FCS_BYTES])
+    return ones_sum(frame[pkg.RX_CSUM_START_OFF : len(frame) - pkg.FCS_BYTES])
 
 
 def csum_sub(total: int, value: int) -> int:
@@ -36,8 +36,8 @@ def linux_validates(frame: bytes, csum: int) -> bool:
         pseudo = bytes(ip)[8:40] + struct.pack(">IxxxB", ip.plen, ip.nh)
     else:
         return False
-    data = frame[pkg.RX_CSUM_START : len(frame) - pkg.FCS_BYTES]
-    ip_start = len(packet) - len(ip) - pkg.RX_CSUM_START
+    data = frame[pkg.RX_CSUM_START_OFF : len(frame) - pkg.FCS_BYTES]
+    ip_start = len(packet) - len(ip) - pkg.RX_CSUM_START_OFF
     total = csum_sub(csum, ones_sum(data[: ip_start + hdr_len]))
     pad = data[ip_start + ip_len :]
     pad_sum = ones_sum(pad)

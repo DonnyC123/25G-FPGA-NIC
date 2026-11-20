@@ -1,6 +1,7 @@
 module rx_csum_top
   import pcs_pkg::*;
   import parser_pkg::*;
+  import csum_pkg::*;
 (
   input  logic                    clk,
   input  logic                    rst,

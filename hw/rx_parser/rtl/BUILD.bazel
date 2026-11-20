@@ -9,7 +9,7 @@ RX_PARSER_DEPS = {
     "eth_parser": [],
     "ipv4_parser": [],
     "ipv6_parser": [],
-    "ipv6_ext_walk": [],
+    "ipv6_ext_walk": ["//hw/rtl_utils:data_status_pipeline"],
     "l4_parser": [],
     "rx_parser": [
         ":eth_parser",
@@ -17,6 +17,7 @@ RX_PARSER_DEPS = {
         ":ipv6_parser",
         ":ipv6_ext_walk",
         ":l4_parser",
+        "//hw/rtl_utils:data_status_pipeline",
     ],
 }
 

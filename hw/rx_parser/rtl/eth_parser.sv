@@ -2,23 +2,19 @@ module eth_parser
   import pcs_pkg::*;
   import parser_pkg::*;
 (
-  input  logic                                    clk,
-  input  logic                                    rst,
-  input  rx_eth_stream_t                          eth_stream_i,
-  output rx_eth_stream_t                          eth_stream_o,
-  output logic           [OFF_W-LAST_BYTES_W-1:0] word_idx_o,
-  output logic                                    hdr_done_o,
-  output logic           [VLAN_COUNT_W-1:0]       vlan_count_o,
-  output logic                                    vlan_overflow_o,
-  output logic                                    ip_v4_o,
-  output logic                                    ip_v6_o
+  input  logic                              clk,
+  input  logic                              rst,
+  input  rx_eth_stream_t                    eth_stream_i,
+  output rx_eth_stream_t                    eth_stream_o,
+  output rx_word_idx_t                      word_idx_o,
+  output logic           [VLAN_COUNT_W-1:0] vlan_count_o,
+  output logic                              ip_v4_o,
+  output logic                              ip_v6_o
 );
 
-  localparam int WORD_IDX_W = OFF_W - LAST_BYTES_W;
-
-  logic           [WORD_IDX_W-1:0]                           word_idx_d;
-  logic           [WORD_IDX_W-1:0]                           word_idx_q;
-  logic           [OFF_W-1:0]                                pos;
+  rx_word_idx_t                                              word_idx_d;
+  rx_word_idx_t                                              word_idx_q;
+  rx_off_t                                                   pos;
   logic                                                      lane_valid;
   logic           [BYTE_W-1:0]                               lane_data;
 
@@ -36,7 +32,7 @@ module eth_parser
 
   rx_eth_stream_t                                            stream_q;
   logic                                                      stream_valid_q;
-  logic           [WORD_IDX_W-1:0]                           stream_idx_q;
+  rx_word_idx_t                                              stream_idx_q;
 
   always_comb begin
     word_idx_d  = word_idx_q;
@@ -87,6 +83,10 @@ module eth_parser
         word_idx_d = word_idx_q + 1'b1;
       end
     end
+
+    if (eth_stream_i.drop) begin
+      word_idx_d = '0;
+    end
   end
 
   always_comb begin
@@ -129,9 +129,7 @@ module eth_parser
     eth_stream_o       = stream_q;
     eth_stream_o.valid = stream_valid_q;
     word_idx_o         = stream_idx_q;
-    hdr_done_o         = hdr_done;
     vlan_count_o       = vlan_count;
-    vlan_overflow_o    = vlan_overflow;
     ip_v4_o            = ip_v4;
     ip_v6_o            = ip_v6;
   end

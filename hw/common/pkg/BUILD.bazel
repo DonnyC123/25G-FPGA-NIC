@@ -18,6 +18,13 @@ sv_pkg(
 sv_pkg(
     name = "parser_pkg",
     visibility = ["//visibility:public"],
+    deps = [":pcs_pkg"],
+)
+
+sv_pkg(
+    name = "rss_pkg",
+    visibility = ["//visibility:public"],
+    deps = [":parser_pkg"],
 )
 
 sv_pkg(

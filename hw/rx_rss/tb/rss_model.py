@@ -3,10 +3,9 @@ import struct
 from dataclasses import dataclass
 from enum import IntEnum
 
-from hw.common.pkg import parser_pkg as pkg
-from hw.common.pkg.parser_pkg import rss_meta_t
+from hw.common.pkg import parser_pkg, rss_pkg
+from hw.common.pkg.rss_pkg import rss_meta_t
 from hw.rx_parser.tb.rx_parser_model import ParseResult, parse
-from hw.rx_rss.tb.rx_rss_sequence_item import RetaWrite
 from hw.tb_utils.generic_model import GenericModel
 from hw.tb_utils.rx_eth_stream import frames
 
@@ -52,8 +51,8 @@ def toeplitz(data: bytes, key: bytes) -> int:
     result = 0
     for i in range(8 * len(data)):
         if (data[i // 8] >> (7 - i % 8)) & 1:
-            window = key_int >> (key_w - pkg.RSS_HASH_W - i)
-            result ^= window & ((1 << pkg.RSS_HASH_W) - 1)
+            window = key_int >> (key_w - rss_pkg.RSS_HASH_W - i)
+            result ^= window & ((1 << rss_pkg.RSS_HASH_W) - 1)
     return result
 
 
@@ -70,8 +69,8 @@ def hash_input(result: ParseResult, udp_ports_en: bool) -> tuple[HashType, bytes
     if not (result.ip_v4 or result.ip_v6):
         return HashType.NONE, b""
     use_ports = result.ports is not None and (
-        result.l4_proto == pkg.IP_PROTO_TCP
-        or (result.l4_proto == pkg.IP_PROTO_UDP and udp_ports_en)
+        result.l4_proto == parser_pkg.IP_PROTO_TCP
+        or (result.l4_proto == parser_pkg.IP_PROTO_UDP and udp_ports_en)
     )
     data = result.src_addr + result.dst_addr
     if use_ports and result.ports is not None:
@@ -87,11 +86,20 @@ def expected_rss(
     if hash_type is HashType.NONE:
         return RssResult(HashType.NONE, 0, 0)
     value = toeplitz(data, key)
-    return RssResult(hash_type, value, reta[value % pkg.RETA_SIZE])
+    return RssResult(hash_type, value, reta[value % rss_pkg.RETA_SIZE])
 
 
 def from_rss_meta(meta: rss_meta_t) -> RssResult:
     return RssResult(HashType(meta.hash_type), meta.hash, meta.rx_queue)
+
+
+@dataclass(frozen=True)
+class RetaTable:
+    queues: tuple[int, ...]
+
+
+def pack_reta(reta: list[int]) -> int:
+    return sum(queue << (rss_pkg.RSS_QUEUE_W * i) for i, queue in enumerate(reta))
 
 
 class RxRssModel(GenericModel):
@@ -101,11 +109,11 @@ class RxRssModel(GenericModel):
         self.udp_ports_en = False
 
     def expected(self) -> list[tuple]:
-        reta = [0] * pkg.RETA_SIZE
+        reta = [0] * rss_pkg.RETA_SIZE
         events: list[tuple] = []
         for item in frames(self.items):
-            if isinstance(item, RetaWrite):
-                reta[item.addr] = item.queue
+            if isinstance(item, RetaTable):
+                reta = list(item.queues)
                 continue
             rss = expected_rss(parse(item), self.key, self.udp_ports_en, reta)
             events.append((item, rss))

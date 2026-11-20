@@ -8,6 +8,7 @@ verilog_library(
     deps = [
         "//hw/common/pkg:parser_pkg",
         "//hw/common/pkg:pcs_pkg",
+        "//hw/common/pkg:rss_pkg",
         "//hw/rx_rss/rtl:rx_rss",
     ],
 )
@@ -17,13 +18,13 @@ py_library(
     srcs = [
         "rss_model.py",
         "rx_rss_monitor.py",
-        "rx_rss_sequence.py",
-        "rx_rss_sequence_item.py",
         "rx_rss_test_base.py",
         "rx_rss_transaction.py",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "//hw/common/pkg:parser_pkg_py",
+        "//hw/common/pkg:rss_pkg_py",
         "//hw/rx_parser/tb:parser_frames",
         "//hw/rx_parser/tb:rx_parser_tb",
         "//hw/tb_utils",

@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from cocotb.types import Logic, LogicArray
 
-from hw.common.pkg.parser_pkg import CSUM_W
+from hw.common.pkg.csum_pkg import CSUM_W
 from hw.tb_utils.rx_eth_stream import RxEthOutTransaction, RxEthOutWord
 
 
