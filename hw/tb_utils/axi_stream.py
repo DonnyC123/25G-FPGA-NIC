@@ -81,6 +81,18 @@ class AxiStreamSequence(GenericSequence[AxiStreamItem]):
                 await self.add_idle(random.randint(1, 3))
             await self.add_word(word, last=i == len(words) - 1)
 
+    async def add_segments(self, segments: list[bytes]) -> None:
+        await self.notify_subscribers(b"".join(segments))
+        words = [
+            segment[i : i + AXI_WORD_BYTES]
+            for segment in segments
+            for i in range(0, len(segment), AXI_WORD_BYTES)
+        ]
+        for i, word in enumerate(words):
+            if i and random.random() < self.gap_rate:
+                await self.add_idle(random.randint(1, 3))
+            await self.add_word(word, last=i == len(words) - 1)
+
 
 class AxiStreamMonitor(GenericMonitor):
     def __init__(self, dut, output_transaction=None, axi=None, clk=None) -> None:

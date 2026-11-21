@@ -33,6 +33,12 @@ def nonzero_csum(frame: bytes, meta: TxMeta) -> bytes:
     return frame[:pos] + b"\xff\xff" + frame[pos + 2 :]
 
 
+def split_frame(frame: bytes) -> list[bytes]:
+    count = min(len(frame) - 1, random.randint(0, 3))
+    cuts = sorted(random.sample(range(1, len(frame)), count))
+    return [frame[a:b] for a, b in zip([0, *cuts], [*cuts, len(frame)])]
+
+
 def random_meta(frame: bytes) -> TxMeta:
     start = random.randint(0, len(frame) + 2)
     offset = random.choice([0, 1, 6, 16, random.randint(0, 64)])
@@ -83,6 +89,20 @@ async def test_metadata_only(dut) -> None:
     for _ in range(5):
         await tb.sequence.add_frame(TxMeta().pack())
         await tb.send(tb.random_frame(100))
+    await tb.finish()
+
+
+@cocotb.test()
+async def test_scatter_gather(dut) -> None:
+    tb = await TxTestBase.start(dut)
+    frames = [pad(bytes(packet)) for packet in KNOWN_FRAMES]
+    frames += [random_frame() for _ in range(100)]
+    for frame in frames:
+        if len(frame) > tb.max_frame:
+            continue
+        meta = linux_meta(frame)
+        sent = seed(frame, meta) if meta.csum else frame
+        await tb.sequence.add_segments([meta.pack(), *split_frame(sent)])
     await tb.finish()
 
 

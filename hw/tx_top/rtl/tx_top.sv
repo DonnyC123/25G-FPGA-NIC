@@ -20,6 +20,7 @@ module tx_top
 
   localparam int CSUM_FIFO_DEPTH = 2 * FIFO_DEPTH;
 
+  axi_stream_if #(.DATA_W(s_axi.DATA_W)) pack_axi ();
   axi_stream_if #(.DATA_W(s_axi.DATA_W)) frame_axi ();
 
   tx_eth_stream_if #(.DATA_W(PCS_PAYLOAD_W)) fifo_stream ();
@@ -37,10 +38,17 @@ module tx_top
   logic                     skid_result_valid;
   logic                     skid_result_ready;
 
+  tx_pack tx_pack_inst (
+      .clk  (axi_clk),
+      .rst  (axi_rst),
+      .s_axi(s_axi),
+      .m_axi(pack_axi)
+  );
+
   tx_meta tx_meta_inst (
       .clk   (axi_clk),
       .rst   (axi_rst),
-      .s_axi (s_axi),
+      .s_axi (pack_axi),
       .m_axi (frame_axi),
       .meta_o     (frame_meta),
       .csum_mask_o(frame_csum_mask)

@@ -1,6 +1,16 @@
 load("@rules_verilog//verilog:defs.bzl", "verilog_library")
 
 verilog_library(
+    name = "tx_pack",
+    srcs = ["tx_pack.sv"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//hw/common/pkg:pcs_pkg",
+        "//hw/rtl_utils/if:axi_stream_if",
+    ],
+)
+
+verilog_library(
     name = "tx_top",
     srcs = ["tx_top.sv"],
     visibility = ["//visibility:public"],
@@ -16,5 +26,6 @@ verilog_library(
         "//hw/tx_csum/rtl:tx_meta",
         "//hw/tx_fifo/rtl:tx_fifo_ctrl",
         "//hw/tx_pcs/rtl:tx_pcs",
+        ":tx_pack",
     ],
 )
