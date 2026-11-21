@@ -29,24 +29,34 @@ set_property PACKAGE_PIN T6 [get_ports pcie_refclk_clk_n]
 # async_fifo (gray-coded pointers + 2-flop synchronizers), handshake_cdc (held
 # data + synchronized req/ack) and rst_sync, so bound each crossing to one
 # destination clock period instead of timing it as synchronous.
-set_max_delay -datapath_only -from [get_clocks axi_aclk] -to [get_clocks {gtwiz_userclk_tx_srcclk_out[0]}] 2.482
-set_max_delay -datapath_only -from [get_clocks {gtwiz_userclk_tx_srcclk_out[0]}] -to [get_clocks axi_aclk] 4.000
-set_max_delay -datapath_only -from [get_clocks axi_aclk] -to [get_clocks {gtwiz_userclk_rx_srcclk_out[0]}] 2.482
-set_max_delay -datapath_only -from [get_clocks {gtwiz_userclk_rx_srcclk_out[0]}] -to [get_clocks axi_aclk] 4.000
+# Each SFP port has its own TX and RX user clock (gt0_inst = SFP 1,
+# gt1_inst = SFP 2); the two ports never exchange data with each other.
+set_max_delay -datapath_only -from [get_clocks axi_aclk] -to [get_clocks -of_objects [get_pins {gt0_inst/gtwiz_userclk_tx_usrclk2_out[0] gt1_inst/gtwiz_userclk_tx_usrclk2_out[0]}]] 2.482
+set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins {gt0_inst/gtwiz_userclk_tx_usrclk2_out[0] gt1_inst/gtwiz_userclk_tx_usrclk2_out[0]}]] -to [get_clocks axi_aclk] 4.000
+set_max_delay -datapath_only -from [get_clocks axi_aclk] -to [get_clocks -of_objects [get_pins {gt0_inst/gtwiz_userclk_rx_usrclk2_out[0] gt1_inst/gtwiz_userclk_rx_usrclk2_out[0]}]] 2.482
+set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins {gt0_inst/gtwiz_userclk_rx_usrclk2_out[0] gt1_inst/gtwiz_userclk_rx_usrclk2_out[0]}]] -to [get_clocks axi_aclk] 4.000
 
 # The async FIFO pointer synchronizers need ASYNC_REG so their two flops are
 # placed together, and the gray-coded pointer bits must not skew by more than
 # one period of the fastest clock or the receiver can see a mixed value.
 set_property ASYNC_REG TRUE [get_cells -hierarchical -filter {NAME =~ *_addr_sync_inst/data_shift_reg_q_reg*}]
 set_property ASYNC_REG TRUE [get_cells -hierarchical -filter {NAME =~ *handshake_cdc_inst/req_sync_inst/data_shift_reg_q_reg* || NAME =~ *handshake_cdc_inst/ack_sync_inst/data_shift_reg_q_reg*}]
-set_bus_skew -from [get_cells {tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_gray_q_reg[*]}] -to [get_cells {tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
-set_bus_skew -from [get_cells {tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
-set_bus_skew -from [get_cells {tx_top_inst/csum_fifo_inst/wr_addr_gray_q_reg[*]}] -to [get_cells {tx_top_inst/csum_fifo_inst/wr_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
-set_bus_skew -from [get_cells {tx_top_inst/csum_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {tx_top_inst/csum_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
-set_bus_skew -from [get_cells {rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_gray_q_reg[*]}] -to [get_cells {rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
-set_bus_skew -from [get_cells {rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
-set_bus_skew -from [get_cells {rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/wr_addr_gray_q_reg[*]}] -to [get_cells {rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/wr_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
-set_bus_skew -from [get_cells {rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[0].tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_gray_q_reg[*]}] -to [get_cells {g_port[0].tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[0].tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {g_port[0].tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[0].tx_top_inst/csum_fifo_inst/wr_addr_gray_q_reg[*]}] -to [get_cells {g_port[0].tx_top_inst/csum_fifo_inst/wr_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[0].tx_top_inst/csum_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {g_port[0].tx_top_inst/csum_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[0].rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_gray_q_reg[*]}] -to [get_cells {g_port[0].rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[0].rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {g_port[0].rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[0].rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/wr_addr_gray_q_reg[*]}] -to [get_cells {g_port[0].rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/wr_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[0].rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {g_port[0].rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[1].tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_gray_q_reg[*]}] -to [get_cells {g_port[1].tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[1].tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {g_port[1].tx_top_inst/tx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[1].tx_top_inst/csum_fifo_inst/wr_addr_gray_q_reg[*]}] -to [get_cells {g_port[1].tx_top_inst/csum_fifo_inst/wr_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[1].tx_top_inst/csum_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {g_port[1].tx_top_inst/csum_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[1].rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_gray_q_reg[*]}] -to [get_cells {g_port[1].rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/commit_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[1].rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {g_port[1].rx_top_inst/rx_fifo_ctrl_inst/async_packet_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[1].rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/wr_addr_gray_q_reg[*]}] -to [get_cells {g_port[1].rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/wr_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
+set_bus_skew -from [get_cells {g_port[1].rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/rd_addr_gray_q_reg[*]}] -to [get_cells {g_port[1].rx_top_inst/rx_fifo_ctrl_inst/meta_fifo_inst/rd_addr_sync_inst/data_shift_reg_q_reg[0][*]}] 2.482
 
 # ---------------------------------------------------------------------------
 # PCIe
@@ -71,13 +81,28 @@ set_property -dict {PACKAGE_PIN D13 IOSTANDARD LVCMOS18} [get_ports sfp_1_los]
 set_false_path -from [get_ports {sfp_1_mod_def_0 sfp_1_tx_fault sfp_1_los}]
 
 # ---------------------------------------------------------------------------
+# SFP 2 (GTYE4_CHANNEL_X0Y14, same quad and QPLL0 as SFP 1)
+# ---------------------------------------------------------------------------
+
+set_property PACKAGE_PIN B2 [get_ports sfp_2_rxp]
+set_property PACKAGE_PIN B1 [get_ports sfp_2_rxn]
+set_property PACKAGE_PIN D7 [get_ports sfp_2_txp]
+set_property PACKAGE_PIN D6 [get_ports sfp_2_txn]
+
+set_property -dict {PACKAGE_PIN E11 IOSTANDARD LVCMOS18} [get_ports sfp_2_mod_def_0]
+set_property -dict {PACKAGE_PIN F9  IOSTANDARD LVCMOS18} [get_ports sfp_2_tx_fault]
+set_property -dict {PACKAGE_PIN E10 IOSTANDARD LVCMOS18} [get_ports sfp_2_los]
+set_false_path -from [get_ports {sfp_2_mod_def_0 sfp_2_tx_fault sfp_2_los}]
+
+# ---------------------------------------------------------------------------
 # LEDs
 # ---------------------------------------------------------------------------
 
-# sfp_1_led: 25G link locked, led_g: PCIe link up
+# sfp_1_led / sfp_2_led: 25G link locked on that port, led_g: PCIe link up
 set_property -dict {PACKAGE_PIN B12 IOSTANDARD LVCMOS18 DRIVE 8 SLEW SLOW} [get_ports sfp_1_led]
+set_property -dict {PACKAGE_PIN C12 IOSTANDARD LVCMOS18 DRIVE 8 SLEW SLOW} [get_ports sfp_2_led]
 set_property -dict {PACKAGE_PIN A12 IOSTANDARD LVCMOS18 DRIVE 8 SLEW SLOW} [get_ports led_g]
-set_false_path -to [get_ports {sfp_1_led led_g}]
+set_false_path -to [get_ports {sfp_1_led sfp_2_led led_g}]
 
 # ---------------------------------------------------------------------------
 # RX lock watchdog
@@ -94,18 +119,12 @@ set_property ASYNC_REG TRUE [get_cells -hierarchical -filter {NAME =~ *link_rst_
 set_false_path -to [get_pins -of_objects [get_cells -hierarchical -filter {NAME =~ *rst_sync_inst/sync_q_reg*}] -filter {REF_PIN_NAME == PRE}]
 
 # ---------------------------------------------------------------------------
-# Debug (DEBUG_EN = 1)
+# Debug hub
 # ---------------------------------------------------------------------------
 
-# vio_ctrl runs on freerun_clk. Its inputs are status and counters from the GT
-# and AXI domains, and its outputs are static controls (rx_invert is
-# resynchronized, loopback_in is asynchronous), so neither side is timed.
-set_false_path -quiet -to   [get_cells -quiet -hierarchical -filter {NAME =~ *vio_ctrl_inst*}]
-set_false_path -quiet -from [get_cells -quiet -hierarchical -filter {NAME =~ *vio_ctrl_inst*}]
-set_property ASYNC_REG TRUE [get_cells -quiet -hierarchical -filter {NAME =~ *rx_invert_sync_inst/data_shift_reg_q_reg*}]
-
-# Clock the debug hub from the always-running 100 MHz clock, so the VIO stays
-# reachable even when the GT user clocks are down.
+# The block design still has jtag_axi_0 and system_ila_0. Clock the debug hub
+# from the always-running 100 MHz clock so they stay reachable even when the
+# GT user clocks are down.
 set_property C_CLK_INPUT_FREQ_HZ 100000000 [get_debug_cores -quiet dbg_hub]
 set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores -quiet dbg_hub]
 connect_debug_port -quiet dbg_hub/clk [get_nets -quiet freerun_clk]

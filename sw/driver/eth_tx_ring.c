@@ -121,7 +121,7 @@ int stop_tx_sgdma(struct xdma_tx_ring* tx_ring) {
 }
 
 int tx_ring_init(struct net_device_priv* xndev) {
-	struct xdma_engine* h2c_engine = &xndev->xdev->engine_h2c[0];
+	struct xdma_engine* h2c_engine = &xndev->xdev->engine_h2c[xndev->port];
 	struct xdma_dev* xdev = xndev->xdev;
 	size_t hw_desc_ring_size;
 	size_t hw_wb_compl_size;

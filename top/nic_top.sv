@@ -1,8 +1,8 @@
 module nic_top
   import rss_pkg::*;
+  import nic_regs_pkg::*;
 #(
-  parameter int SCRAMBLER_BYPASS = 0,
-  parameter int DEBUG_EN         = 1
+  parameter int SCRAMBLER_BYPASS = 0
 ) (
   input  logic       diff_100mhz_clk_p,
   input  logic       diff_100mhz_clk_n,
@@ -20,6 +20,16 @@ module nic_top
   input  logic       sfp_1_los,
   output logic       sfp_1_led,
 
+  input  logic       sfp_2_rxp,
+  input  logic       sfp_2_rxn,
+  output logic       sfp_2_txp,
+  output logic       sfp_2_txn,
+
+  input  logic       sfp_2_mod_def_0,
+  input  logic       sfp_2_tx_fault,
+  input  logic       sfp_2_los,
+  output logic       sfp_2_led,
+
   input  logic [7:0] pci_express_x8_rxn,
   input  logic [7:0] pci_express_x8_rxp,
   output logic [7:0] pci_express_x8_txn,
@@ -35,14 +45,14 @@ module nic_top
   localparam int GT_DATA_W  = 64;
   localparam int DROP_W     = 32;
 
-  axi_stream_if #(.DATA_W(AXI_DATA_W)) rx_axi_stream ();
-  axi_stream_if #(.DATA_W(AXI_DATA_W)) tx_axi_stream ();
+  axi_stream_if #(.DATA_W(AXI_DATA_W)) rx_axi_stream [NIC_PORTS] ();
+  axi_stream_if #(.DATA_W(AXI_DATA_W)) tx_axi_stream [NIC_PORTS] ();
   axi4_lite_if                         nic_axil ();
 
-  logic [RSS_KEY_W-1:0]                  rss_key;
-  logic                                  udp_ports_en;
-  logic [RETA_SIZE-1:0][RSS_QUEUE_W-1:0] reta;
-  logic                                  cfg_eth_rst;
+  logic [NIC_PORTS-1:0][RSS_KEY_W-1:0]                  rss_key;
+  logic [NIC_PORTS-1:0]                                 udp_ports_en;
+  logic [NIC_PORTS-1:0][RETA_SIZE-1:0][RSS_QUEUE_W-1:0] reta;
+  logic [NIC_PORTS-1:0]                                 cfg_eth_rst;
 
   logic                 freerun_clk;
   logic                 mgtrefclk_227;
@@ -57,46 +67,33 @@ module nic_top
   logic                 axi_rst;
   logic                 pcie_link_up;
 
-  logic                 tx_usrclk;
-  logic                 rx_usrclk;
-  logic                 tx_userclk_active;
-  logic                 rx_userclk_active;
-  logic                 gt_powergood;
-  logic                 tx_reset_done;
-  logic                 rx_reset_done;
-  logic                 rx_cdr_stable;
-  logic [2:0]           loopback_mode;
+  logic                 qpll0_clk;
+  logic                 qpll0_refclk;
+  logic                 qpll0_lock;
 
-  logic [GT_DATA_W-1:0] gt_tx_data;
-  logic [GT_DATA_W-1:0] gt_rx_data;
-  logic [GT_DATA_W-1:0] rx_raw_data;
-  logic                 rx_locked;
-  logic                 rx_bitslip;
+  logic [NIC_PORTS-1:0]                 tx_usrclk;
+  logic [NIC_PORTS-1:0]                 rx_usrclk;
+  logic [NIC_PORTS-1:0]                 tx_userclk_active;
+  logic [NIC_PORTS-1:0]                 rx_userclk_active;
+  logic [NIC_PORTS-1:0]                 gt_powergood;
+  logic [NIC_PORTS-1:0]                 tx_reset_done;
+  logic [NIC_PORTS-1:0]                 rx_reset_done;
+  logic [NIC_PORTS-1:0]                 rx_cdr_stable;
 
-  pcs_pkg::rx_eth_stream_t rx_pcs_stream;
-  logic                    rx_crc_drop;
-  logic                    rx_fifo_cancel;
+  logic [NIC_PORTS-1:0][GT_DATA_W-1:0]  gt_tx_data;
+  logic [NIC_PORTS-1:0][GT_DATA_W-1:0]  gt_rx_data;
+  logic [NIC_PORTS-1:0]                 rx_locked;
+  logic [NIC_PORTS-1:0]                 rx_bitslip;
+  logic [NIC_PORTS-1:0]                 rx_watchdog_rst;
 
-  logic                 rx_invert;
-  logic                 rx_invert_sync [2];
-  logic                 rx_datapath_rst;
-  logic                 rx_watchdog_rst;
+  logic [NIC_PORTS-1:0][DROP_W-1:0]     overflow_drops;
+  logic [NIC_PORTS-1:0][DROP_W-1:0]     crc_drops;
+  logic [NIC_PORTS-1:0][DROP_W-1:0]     pcs_drops;
 
-  logic [DROP_W-1:0]    overflow_drops;
-  logic [DROP_W-1:0]    crc_drops;
-  logic [DROP_W-1:0]    pcs_drops;
-
-  logic                 rx_ready;
-  logic                 tx_ready;
-  logic                 rx_link_rst;
-  logic                 tx_link_rst;
-  logic [1:0]           link_rst_sync [2];
-  logic                 rx_link_rst_sync;
-  logic                 tx_link_rst_sync;
-  logic                 rx_eth_rst;
-  logic                 rx_axi_rst;
-  logic                 tx_eth_rst;
-  logic                 tx_axi_rst;
+  logic [NIC_PORTS-1:0]                 rx_eth_rst;
+  logic [NIC_PORTS-1:0]                 rx_axi_rst;
+  logic [NIC_PORTS-1:0]                 tx_eth_rst;
+  logic [NIC_PORTS-1:0]                 tx_axi_rst;
 
   IBUFDS sysclk_buf_inst (
       .I (diff_100mhz_clk_p),
@@ -136,11 +133,6 @@ module nic_top
   assign pcie_link_up        = 1'b0;
   assign pci_express_x8_txn  = '0;
   assign pci_express_x8_txp  = '0;
-  assign tx_axi_stream.data  = '0;
-  assign tx_axi_stream.mask  = '0;
-  assign tx_axi_stream.valid = 1'b0;
-  assign tx_axi_stream.last  = 1'b0;
-  assign rx_axi_stream.ready = 1'b1;
   assign nic_axil.awaddr     = '0;
   assign nic_axil.awprot     = '0;
   assign nic_axil.awvalid    = 1'b0;
@@ -152,6 +144,14 @@ module nic_top
   assign nic_axil.arprot     = '0;
   assign nic_axil.arvalid    = 1'b0;
   assign nic_axil.rready     = 1'b1;
+
+  for (genvar p = 0; p < NIC_PORTS; p++) begin : g_no_pcie
+    assign tx_axi_stream[p].data  = '0;
+    assign tx_axi_stream[p].mask  = '0;
+    assign tx_axi_stream[p].valid = 1'b0;
+    assign tx_axi_stream[p].last  = 1'b0;
+    assign rx_axi_stream[p].ready = 1'b1;
+  end
 `else
   design_1_wrapper design_1_wrapper_inst (
       .pci_express_x8_rxn   (pci_express_x8_rxn),
@@ -164,16 +164,26 @@ module nic_top
       .axi_aclk             (axi_aclk),
       .axi_aresetn          (axi_aresetn),
       .user_lnk_up          (pcie_link_up),
-      .M_AXIS_H2C_0_0_tdata (tx_axi_stream.data),
-      .M_AXIS_H2C_0_0_tkeep (tx_axi_stream.mask),
-      .M_AXIS_H2C_0_0_tvalid(tx_axi_stream.valid),
-      .M_AXIS_H2C_0_0_tlast (tx_axi_stream.last),
-      .M_AXIS_H2C_0_0_tready(tx_axi_stream.ready),
-      .S_AXIS_C2H_0_0_tdata (rx_axi_stream.data),
-      .S_AXIS_C2H_0_0_tkeep (rx_axi_stream.mask),
-      .S_AXIS_C2H_0_0_tvalid(rx_axi_stream.valid),
-      .S_AXIS_C2H_0_0_tlast (rx_axi_stream.last),
-      .S_AXIS_C2H_0_0_tready(rx_axi_stream.ready),
+      .M_AXIS_H2C_0_0_tdata (tx_axi_stream[0].data),
+      .M_AXIS_H2C_0_0_tkeep (tx_axi_stream[0].mask),
+      .M_AXIS_H2C_0_0_tvalid(tx_axi_stream[0].valid),
+      .M_AXIS_H2C_0_0_tlast (tx_axi_stream[0].last),
+      .M_AXIS_H2C_0_0_tready(tx_axi_stream[0].ready),
+      .S_AXIS_C2H_0_0_tdata (rx_axi_stream[0].data),
+      .S_AXIS_C2H_0_0_tkeep (rx_axi_stream[0].mask),
+      .S_AXIS_C2H_0_0_tvalid(rx_axi_stream[0].valid),
+      .S_AXIS_C2H_0_0_tlast (rx_axi_stream[0].last),
+      .S_AXIS_C2H_0_0_tready(rx_axi_stream[0].ready),
+      .M_AXIS_H2C_1_0_tdata (tx_axi_stream[1].data),
+      .M_AXIS_H2C_1_0_tkeep (tx_axi_stream[1].mask),
+      .M_AXIS_H2C_1_0_tvalid(tx_axi_stream[1].valid),
+      .M_AXIS_H2C_1_0_tlast (tx_axi_stream[1].last),
+      .M_AXIS_H2C_1_0_tready(tx_axi_stream[1].ready),
+      .S_AXIS_C2H_1_0_tdata (rx_axi_stream[1].data),
+      .S_AXIS_C2H_1_0_tkeep (rx_axi_stream[1].mask),
+      .S_AXIS_C2H_1_0_tvalid(rx_axi_stream[1].valid),
+      .S_AXIS_C2H_1_0_tlast (rx_axi_stream[1].last),
+      .S_AXIS_C2H_1_0_tready(rx_axi_stream[1].ready),
       .M_AXI_LITE_0_awaddr  (nic_axil.awaddr),
       .M_AXI_LITE_0_awprot  (nic_axil.awprot),
       .M_AXI_LITE_0_awvalid (nic_axil.awvalid),
@@ -196,92 +206,83 @@ module nic_top
   );
 `endif
 
-  gtwizard_ultrascale_0 gt_inst (
+  gtwizard_ultrascale_0 gt0_inst (
       .gtwiz_reset_clk_freerun_in        (freerun_clk),
       .gtwiz_reset_all_in                (freerun_rst_q),
       .gtwiz_reset_tx_pll_and_datapath_in(1'b0),
       .gtwiz_reset_tx_datapath_in        (1'b0),
       .gtwiz_reset_rx_pll_and_datapath_in(1'b0),
-      .gtwiz_reset_rx_datapath_in        (rx_datapath_rst || rx_watchdog_rst),
+      .gtwiz_reset_rx_datapath_in        (rx_watchdog_rst[0]),
       .gtwiz_userclk_tx_reset_in         (freerun_rst_q),
       .gtwiz_userclk_rx_reset_in         (freerun_rst_q),
       .gtwiz_userclk_tx_srcclk_out       (),
       .gtwiz_userclk_tx_usrclk_out       (),
-      .gtwiz_userclk_tx_usrclk2_out      (tx_usrclk),
-      .gtwiz_userclk_tx_active_out       (tx_userclk_active),
+      .gtwiz_userclk_tx_usrclk2_out      (tx_usrclk[0]),
+      .gtwiz_userclk_tx_active_out       (tx_userclk_active[0]),
       .gtwiz_userclk_rx_srcclk_out       (),
       .gtwiz_userclk_rx_usrclk_out       (),
-      .gtwiz_userclk_rx_usrclk2_out      (rx_usrclk),
-      .gtwiz_userclk_rx_active_out       (rx_userclk_active),
+      .gtwiz_userclk_rx_usrclk2_out      (rx_usrclk[0]),
+      .gtwiz_userclk_rx_active_out       (rx_userclk_active[0]),
       .gtrefclk00_in                     (mgtrefclk_227),
       .gtyrxp_in                         (sfp_1_rxp),
       .gtyrxn_in                         (sfp_1_rxn),
       .gtytxp_out                        (sfp_1_txp),
       .gtytxn_out                        (sfp_1_txn),
-      .gtwiz_userdata_tx_in              (gt_tx_data),
-      .gtwiz_userdata_rx_out             (gt_rx_data),
-      .loopback_in                       (loopback_mode),
-      .rxslide_in                        (rx_bitslip),
-      .gtpowergood_out                   (gt_powergood),
-      .gtwiz_reset_tx_done_out           (tx_reset_done),
-      .gtwiz_reset_rx_done_out           (rx_reset_done),
-      .gtwiz_reset_rx_cdr_stable_out     (rx_cdr_stable),
+      .gtwiz_userdata_tx_in              (gt_tx_data[0]),
+      .gtwiz_userdata_rx_out             (gt_rx_data[0]),
+      .loopback_in                       (3'b000),
+      .rxslide_in                        (rx_bitslip[0]),
+      .gtpowergood_out                   (gt_powergood[0]),
+      .gtwiz_reset_tx_done_out           (tx_reset_done[0]),
+      .gtwiz_reset_rx_done_out           (rx_reset_done[0]),
+      .gtwiz_reset_rx_cdr_stable_out     (rx_cdr_stable[0]),
       .rxpmaresetdone_out                (),
       .txpmaresetdone_out                (),
-      .qpll0outclk_out                   (),
-      .qpll0outrefclk_out                ()
+      .qpll0lock_out                     (qpll0_lock),
+      .qpll0outclk_out                   (qpll0_clk),
+      .qpll0outrefclk_out                (qpll0_refclk)
   );
 
-  always_comb begin
-    rx_ready    = rx_reset_done && rx_userclk_active && gt_powergood;
-    tx_ready    = tx_reset_done && tx_userclk_active && gt_powergood;
-    rx_link_rst = !rx_ready || axi_rst;
-    tx_link_rst = !tx_ready || axi_rst;
-  end
-
-  shift_reg #(
-      .DATA_W    (2),
-      .PIPE_DEPTH(2),
-      .RST_EN    (1),
-      .RST_VAL   ('1)
-  ) link_rst_sync_inst (
-      .clk   (freerun_clk),
-      .rst   (freerun_rst_q),
-      .data_i({rx_link_rst, tx_link_rst}),
-      .data_o(link_rst_sync)
+  gtwizard_ultrascale_1 gt1_inst (
+      .gtwiz_reset_clk_freerun_in        (freerun_clk),
+      .gtwiz_reset_all_in                (freerun_rst_q),
+      .gtwiz_reset_tx_pll_and_datapath_in(1'b0),
+      .gtwiz_reset_tx_datapath_in        (1'b0),
+      .gtwiz_reset_rx_pll_and_datapath_in(1'b0),
+      .gtwiz_reset_rx_datapath_in        (rx_watchdog_rst[1]),
+      .gtwiz_userclk_tx_reset_in         (freerun_rst_q),
+      .gtwiz_userclk_rx_reset_in         (freerun_rst_q),
+      .gtwiz_userclk_tx_srcclk_out       (),
+      .gtwiz_userclk_tx_usrclk_out       (),
+      .gtwiz_userclk_tx_usrclk2_out      (tx_usrclk[1]),
+      .gtwiz_userclk_tx_active_out       (tx_userclk_active[1]),
+      .gtwiz_userclk_rx_srcclk_out       (),
+      .gtwiz_userclk_rx_usrclk_out       (),
+      .gtwiz_userclk_rx_usrclk2_out      (rx_usrclk[1]),
+      .gtwiz_userclk_rx_active_out       (rx_userclk_active[1]),
+      .gtwiz_reset_qpll0lock_in          (qpll0_lock),
+      .gtwiz_reset_qpll0reset_out        (),
+      .qpll0clk_in                       (qpll0_clk),
+      .qpll0refclk_in                    (qpll0_refclk),
+      .qpll1clk_in                       (1'b0),
+      .qpll1refclk_in                    (1'b0),
+      .gtyrxp_in                         (sfp_2_rxp),
+      .gtyrxn_in                         (sfp_2_rxn),
+      .gtytxp_out                        (sfp_2_txp),
+      .gtytxn_out                        (sfp_2_txn),
+      .gtwiz_userdata_tx_in              (gt_tx_data[1]),
+      .gtwiz_userdata_rx_out             (gt_rx_data[1]),
+      .loopback_in                       (3'b000),
+      .rxslide_in                        (rx_bitslip[1]),
+      .gtpowergood_out                   (gt_powergood[1]),
+      .gtwiz_reset_tx_done_out           (tx_reset_done[1]),
+      .gtwiz_reset_rx_done_out           (rx_reset_done[1]),
+      .gtwiz_reset_rx_cdr_stable_out     (rx_cdr_stable[1]),
+      .rxpmaresetdone_out                (),
+      .txpmaresetdone_out                ()
   );
 
-  assign {rx_link_rst_sync, tx_link_rst_sync} = link_rst_sync[1];
-
-  rst_sync rx_eth_rst_sync_inst (
-      .clk  (rx_usrclk),
-      .rst_i(rx_link_rst_sync),
-      .rst_o(rx_eth_rst)
-  );
-
-  rst_sync rx_axi_rst_sync_inst (
-      .clk  (axi_aclk),
-      .rst_i(rx_link_rst_sync),
-      .rst_o(rx_axi_rst)
-  );
-
-  rst_sync tx_eth_rst_sync_inst (
-      .clk  (tx_usrclk),
-      .rst_i(tx_link_rst_sync),
-      .rst_o(tx_eth_rst)
-  );
-
-  rst_sync tx_axi_rst_sync_inst (
-      .clk  (axi_aclk),
-      .rst_i(tx_link_rst_sync),
-      .rst_o(tx_axi_rst)
-  );
-
-  rst_sync cfg_eth_rst_sync_inst (
-      .clk  (rx_usrclk),
-      .rst_i(axi_rst),
-      .rst_o(cfg_eth_rst)
-  );
+  assign axi_rst = !axi_aresetn;
 
   nic_regs nic_regs_inst (
       .axi_clk       (axi_aclk),
@@ -294,123 +295,118 @@ module nic_top
       .reta_o        (reta)
   );
 
-  rx_lock_watchdog rx_lock_watchdog_inst (
-      .clk            (freerun_clk),
-      .rst            (freerun_rst_q),
-      .rx_reset_done_i(rx_reset_done),
-      .locked_i       (rx_locked),
-      .rx_reset_o     (rx_watchdog_rst)
-  );
+  for (genvar p = 0; p < NIC_PORTS; p++) begin : g_port
+    logic       rx_ready;
+    logic       tx_ready;
+    logic       rx_link_rst;
+    logic       tx_link_rst;
+    logic [1:0] link_rst_sync [2];
+    logic       rx_link_rst_sync;
+    logic       tx_link_rst_sync;
 
-  shift_reg #(
-      .DATA_W    (1),
-      .PIPE_DEPTH(2),
-      .RST_EN    (0)
-  ) rx_invert_sync_inst (
-      .clk   (rx_usrclk),
-      .rst   (1'b0),
-      .data_i(rx_invert),
-      .data_o(rx_invert_sync)
-  );
+    always_comb begin
+      rx_ready    = rx_reset_done[p] && rx_userclk_active[p] && gt_powergood[p];
+      tx_ready    = tx_reset_done[p] && tx_userclk_active[p] && gt_powergood[p];
+      rx_link_rst = !rx_ready || axi_rst;
+      tx_link_rst = !tx_ready || axi_rst;
+    end
 
-  assign rx_raw_data = gt_rx_data ^ {GT_DATA_W{rx_invert_sync[1]}};
-
-  rx_top #(
-      .DIN_W       (GT_DATA_W),
-      .GOOD_COUNT  (64),
-      .BAD_COUNT   (8),
-      .BITSLIP_WAIT(256),
-      .FIFO_DEPTH  (2048),
-      .DROP_COUNT_W(DROP_W)
-  ) rx_top_inst (
-      .eth_clk         (rx_usrclk),
-      .eth_rst         (rx_eth_rst),
-      .axi_clk         (axi_aclk),
-      .axi_rst         (rx_axi_rst),
-      .raw_data_i      (rx_raw_data),
-      .raw_valid_i     (1'b1),
-      .rss_key_i       (rss_key),
-      .udp_ports_en_i  (udp_ports_en),
-      .reta_i          (reta),
-      .locked_o        (rx_locked),
-      .bitslip_o       (rx_bitslip),
-      .overflow_drops_o(overflow_drops),
-      .crc_drops_o     (crc_drops),
-      .pcs_drops_o     (pcs_drops),
-      .pcs_stream_o    (rx_pcs_stream),
-      .crc_drop_o      (rx_crc_drop),
-      .fifo_cancel_o   (rx_fifo_cancel),
-      .m_axi           (rx_axi_stream)
-  );
-
-  tx_top #(
-      .FIFO_DEPTH      (128),
-      .SCRAMBLER_BYPASS(SCRAMBLER_BYPASS)
-  ) tx_top_inst (
-      .axi_clk    (axi_aclk),
-      .axi_rst    (tx_axi_rst),
-      .eth_clk    (tx_usrclk),
-      .eth_rst    (tx_eth_rst),
-      .s_axi      (tx_axi_stream),
-      .raw_data_o (gt_tx_data),
-      .raw_valid_o()
-  );
-
-  assign axi_rst       = !axi_aresetn;
-
-  if (DEBUG_EN != 0) begin : g_debug
-    vio_ctrl vio_ctrl_inst (
-        .clk       (freerun_clk),
-        .probe_in0 (gt_powergood),
-        .probe_in1 (tx_reset_done),
-        .probe_in2 (rx_reset_done),
-        .probe_in3 (rx_cdr_stable),
-        .probe_in4 (rx_userclk_active),
-        .probe_in5 (rx_locked),
-        .probe_in6 (pcie_link_up),
-        .probe_in7 (sfp_1_los),
-        .probe_in8 (sfp_1_tx_fault),
-        .probe_in9 (sfp_1_mod_def_0),
-        .probe_in10(overflow_drops),
-        .probe_in11(crc_drops),
-        .probe_in12(pcs_drops),
-        .probe_out0(loopback_mode),
-        .probe_out1(rx_invert),
-        .probe_out2(rx_datapath_rst)
+    shift_reg #(
+        .DATA_W    (2),
+        .PIPE_DEPTH(2),
+        .RST_EN    (1),
+        .RST_VAL   ('1)
+    ) link_rst_sync_inst (
+        .clk   (freerun_clk),
+        .rst   (freerun_rst_q),
+        .data_i({rx_link_rst, tx_link_rst}),
+        .data_o(link_rst_sync)
     );
 
-    ila_rx ila_rx_inst (
-        .clk   (rx_usrclk),
-        .probe0(rx_raw_data),
-        .probe1(rx_eth_rst),
-        .probe2(rx_locked),
-        .probe3(rx_bitslip),
-        .probe4(rx_pcs_stream.valid),
-        .probe5(rx_pcs_stream.last),
-        .probe6(rx_pcs_stream.drop),
-        .probe7(rx_pcs_stream.data),
-        .probe8(rx_crc_drop),
-        .probe9(rx_fifo_cancel)
+    assign {rx_link_rst_sync, tx_link_rst_sync} = link_rst_sync[1];
+
+    rst_sync rx_eth_rst_sync_inst (
+        .clk  (rx_usrclk[p]),
+        .rst_i(rx_link_rst_sync),
+        .rst_o(rx_eth_rst[p])
     );
 
-    ila_c2h ila_c2h_inst (
-        .clk   (axi_aclk),
-        .probe0(rx_axi_stream.data[63:0]),
-        .probe1(rx_axi_stream.valid),
-        .probe2(rx_axi_stream.ready),
-        .probe3(rx_axi_stream.last),
-        .probe4(rx_axi_rst),
-        .probe5(tx_axi_stream.valid),
-        .probe6(tx_axi_stream.ready),
-        .probe7(tx_axi_stream.last)
+    rst_sync rx_axi_rst_sync_inst (
+        .clk  (axi_aclk),
+        .rst_i(rx_link_rst_sync),
+        .rst_o(rx_axi_rst[p])
     );
-  end else begin : g_no_debug
-    assign loopback_mode   = 3'b000;
-    assign rx_invert       = 1'b0;
-    assign rx_datapath_rst = 1'b0;
+
+    rst_sync tx_eth_rst_sync_inst (
+        .clk  (tx_usrclk[p]),
+        .rst_i(tx_link_rst_sync),
+        .rst_o(tx_eth_rst[p])
+    );
+
+    rst_sync tx_axi_rst_sync_inst (
+        .clk  (axi_aclk),
+        .rst_i(tx_link_rst_sync),
+        .rst_o(tx_axi_rst[p])
+    );
+
+    rst_sync cfg_eth_rst_sync_inst (
+        .clk  (rx_usrclk[p]),
+        .rst_i(axi_rst),
+        .rst_o(cfg_eth_rst[p])
+    );
+
+    rx_lock_watchdog rx_lock_watchdog_inst (
+        .clk            (freerun_clk),
+        .rst            (freerun_rst_q),
+        .rx_reset_done_i(rx_reset_done[p]),
+        .locked_i       (rx_locked[p]),
+        .rx_reset_o     (rx_watchdog_rst[p])
+    );
+
+    rx_top #(
+        .DIN_W       (GT_DATA_W),
+        .GOOD_COUNT  (64),
+        .BAD_COUNT   (8),
+        .BITSLIP_WAIT(256),
+        .FIFO_DEPTH  (2048),
+        .DROP_COUNT_W(DROP_W)
+    ) rx_top_inst (
+        .eth_clk         (rx_usrclk[p]),
+        .eth_rst         (rx_eth_rst[p]),
+        .axi_clk         (axi_aclk),
+        .axi_rst         (rx_axi_rst[p]),
+        .raw_data_i      (gt_rx_data[p]),
+        .raw_valid_i     (1'b1),
+        .rss_key_i       (rss_key[p]),
+        .udp_ports_en_i  (udp_ports_en[p]),
+        .reta_i          (reta[p]),
+        .locked_o        (rx_locked[p]),
+        .bitslip_o       (rx_bitslip[p]),
+        .overflow_drops_o(overflow_drops[p]),
+        .crc_drops_o     (crc_drops[p]),
+        .pcs_drops_o     (pcs_drops[p]),
+        .pcs_stream_o    (),
+        .crc_drop_o      (),
+        .fifo_cancel_o   (),
+        .m_axi           (rx_axi_stream[p])
+    );
+
+    tx_top #(
+        .FIFO_DEPTH      (128),
+        .SCRAMBLER_BYPASS(SCRAMBLER_BYPASS)
+    ) tx_top_inst (
+        .axi_clk    (axi_aclk),
+        .axi_rst    (tx_axi_rst[p]),
+        .eth_clk    (tx_usrclk[p]),
+        .eth_rst    (tx_eth_rst[p]),
+        .s_axi      (tx_axi_stream[p]),
+        .raw_data_o (gt_tx_data[p]),
+        .raw_valid_o()
+    );
   end
 
-  assign led_g         = pcie_link_up;
-  assign sfp_1_led     = rx_locked;
+  assign led_g     = pcie_link_up;
+  assign sfp_1_led = rx_locked[0];
+  assign sfp_2_led = rx_locked[1];
 
 endmodule

@@ -1,5 +1,6 @@
 module nic_regs_top
   import rss_pkg::*;
+  import nic_regs_pkg::*;
 (
   input  logic                               axi_clk,
   input  logic                               axi_rst,
@@ -33,7 +34,9 @@ module nic_regs_top
 
   axi4_lite_if s_axil ();
 
-  logic [RETA_SIZE-1:0][RSS_QUEUE_W-1:0] reta;
+  logic [NIC_PORTS-1:0][RSS_KEY_W-1:0]                  rss_key;
+  logic [NIC_PORTS-1:0]                                 udp_ports_en;
+  logic [NIC_PORTS-1:0][RETA_SIZE-1:0][RSS_QUEUE_W-1:0] reta;
 
   always_comb begin
     s_axil.awaddr  = s_axil_awaddr;
@@ -53,10 +56,10 @@ module nic_regs_top
       .axi_clk       (axi_clk),
       .axi_rst       (axi_rst),
       .s_axil        (s_axil),
-      .eth_clk       (eth_clk),
-      .eth_rst       (eth_rst),
-      .rss_key_o     (rss_key_o),
-      .udp_ports_en_o(udp_ports_en_o),
+      .eth_clk       ({NIC_PORTS{eth_clk}}),
+      .eth_rst       ({NIC_PORTS{eth_rst}}),
+      .rss_key_o     (rss_key),
+      .udp_ports_en_o(udp_ports_en),
       .reta_o        (reta)
   );
 
@@ -69,7 +72,9 @@ module nic_regs_top
     s_axil_rdata   = s_axil.rdata;
     s_axil_rresp   = s_axil.rresp;
     s_axil_rvalid  = s_axil.rvalid;
-    reta_o         = reta;
+    rss_key_o      = rss_key[0];
+    udp_ports_en_o = udp_ports_en[0];
+    reta_o         = reta[0];
   end
 
 endmodule

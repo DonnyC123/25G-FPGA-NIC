@@ -94,87 +94,19 @@ static const struct pci_device_id pci_ids[] = {
 
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
-static void init_net_dev_priv(struct net_device_priv* xndev, struct pci_dev* pdev) {
-	memset(xndev, 0, sizeof(*xndev));
+static int eth_port_probe(struct eth_pci_dev* epdev, struct pci_dev* pdev, int port) {
+	const unsigned char mac_addr[ETH_ALEN] = {0x00, 0x0A, 0x35, 0x01, 0x02, 0x03 + port};
 
-	xndev->magic = MAGIC_DEVICE;
-	xndev->pdev = pdev;
-	xndev->user_max = MAX_USER_IRQ;
-	xndev->h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
-	xndev->c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
-
-	xpdev_cnt++;
-}
-
-static int probe_one(struct pci_dev* pdev, const struct pci_device_id* id) {
-	const unsigned char my_mac_addr[ETH_ALEN] = {0x00, 0x0A, 0x35, 0x01, 0x02, 0x03};
-	struct xdma_dev* xdev;
-	void* hndl = NULL;
-	int rv;
-
-	pr_info("My driver: Found a matching device!\n");
 	struct net_device* net_dev = alloc_etherdev(sizeof(struct net_device_priv));
 	if (!net_dev)
 		return -ENOMEM;
 
 	struct net_device_priv* xndev = netdev_priv(net_dev);
-	init_net_dev_priv(xndev, pdev);
+	xndev->magic = MAGIC_DEVICE;
+	xndev->pdev = pdev;
+	xndev->xdev = epdev->xdev;
 	xndev->net_dev = net_dev;
-
-	hndl = xdma_netdev_open(DRV_MODULE_NAME, pdev, &xndev->user_max, &xndev->h2c_channel_max,
-				&xndev->c2h_channel_max);
-	if (!hndl) {
-		rv = -EINVAL;
-		goto err_out;
-	}
-
-	if (xndev->user_max > MAX_USER_IRQ) {
-		pr_err("Maximum users limit reached\n");
-		rv = -EINVAL;
-		goto err_out;
-	}
-
-	if (xndev->h2c_channel_max > XDMA_CHANNEL_NUM_MAX) {
-		pr_err("Maximun H2C channel limit reached\n");
-		rv = -EINVAL;
-		goto err_out;
-	}
-
-	if (xndev->c2h_channel_max > XDMA_CHANNEL_NUM_MAX) {
-		pr_err("Maximun C2H channel limit reached\n");
-		rv = -EINVAL;
-		goto err_out;
-	}
-
-	if (!xndev->h2c_channel_max && !xndev->c2h_channel_max)
-		pr_warn("NO engine found!\n");
-
-	if (xndev->user_max) {
-		u32 mask = (1 << (xndev->user_max + 1)) - 1;
-
-		rv = xdma_user_isr_enable(hndl, mask);
-		if (rv)
-			goto err_out;
-	}
-
-	// make sure no duplicate
-	xdev = xdev_find_by_pdev(pdev);
-	if (!xdev) {
-		pr_warn("No xdev found!\n");
-		rv = -EINVAL;
-		goto err_out;
-	}
-
-	if (hndl != xdev) {
-		pr_err("xdev handle mismatch\n");
-		rv = -EINVAL;
-		goto err_out;
-	}
-
-	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, usr %d, ch %d,%d.\n", dev_name(&pdev->dev), xdev->idx, pdev,
-		xndev, xdev, xndev->user_max, xndev->h2c_channel_max, xndev->c2h_channel_max);
-
-	xndev->xdev = hndl;
+	xndev->port = port;
 
 	net_dev->netdev_ops = &netdev_ops;
 	net_dev->watchdog_timeo = WATCHDOG_PERIOD;
@@ -186,15 +118,15 @@ static int probe_one(struct pci_dev* pdev, const struct pci_device_id* id) {
 	net_dev->hw_features |= NETIF_F_RXCSUM | NETIF_F_RXHASH;
 	net_dev->features |= NETIF_F_RXCSUM | NETIF_F_RXHASH;
 
-	eth_hw_addr_set(net_dev, my_mac_addr);
+	eth_hw_addr_set(net_dev, mac_addr);
 
 	SET_NETDEV_DEV(net_dev, &pdev->dev);
 	net_dev->dev.parent = &pdev->dev;
 
-	rv = rx_ring_init(xndev);
+	int rv = rx_ring_init(xndev);
 	if (rv) {
 		pr_err("Failed to init rx_ring: %d\n", rv);
-		goto err_out;
+		goto err_rx_ring_init;
 	}
 
 	rv = tx_ring_init(xndev);
@@ -209,9 +141,9 @@ static int probe_one(struct pci_dev* pdev, const struct pci_device_id* id) {
 		goto err_register_netdev;
 	}
 
-	pci_set_drvdata(pdev, net_dev);
+	epdev->net_devs[port] = net_dev;
 
-	pr_info("Registered network device %s\n", net_dev->name);
+	pr_info("Registered network device %s on port %d\n", net_dev->name, port);
 
 	return 0;
 
@@ -219,34 +151,139 @@ err_register_netdev:
 	tx_ring_free(xndev);
 err_tx_ring_init:
 	rx_ring_free(xndev);
-err_out:
-	pr_info("xdev 0x%p xdma_device_close.\n", hndl);
-	xdma_device_close(pdev, hndl);
-	xpdev_cnt--;
-
-	pr_err("pdev 0x%p, err %d.\n", pdev, rv);
+err_rx_ring_init:
 	free_netdev(net_dev);
 	return rv;
 }
 
-static void remove_one(struct pci_dev* pdev) {
-	struct net_device* net_dev = pci_get_drvdata(pdev);
-	if (!net_dev)
-		return;
-
+static void eth_port_remove(struct net_device* net_dev) {
 	struct net_device_priv* xndev = netdev_priv(net_dev);
-	struct xdma_dev* xdev = xndev->xdev;
 
 	unregister_netdev(net_dev);
 
 	tx_ring_free(xndev);
 	rx_ring_free(xndev);
 
-	xdma_device_close(pdev, xdev);
+	free_netdev(net_dev);
+}
+
+static void eth_remove_ports(struct eth_pci_dev* epdev) {
+	for (int port = epdev->num_ports - 1; port >= 0; port--) {
+		struct net_device* net_dev = epdev->net_devs[port];
+		if (!net_dev)
+			continue;
+
+		eth_port_remove(net_dev);
+		epdev->net_devs[port] = NULL;
+	}
+}
+
+static int probe_one(struct pci_dev* pdev, const struct pci_device_id* id) {
+	int h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
+	int c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
+	int user_max = MAX_USER_IRQ;
+	int rv;
+
+	pr_info("My driver: Found a matching device!\n");
+	struct eth_pci_dev* epdev = kzalloc(sizeof(*epdev), GFP_KERNEL);
+	if (!epdev)
+		return -ENOMEM;
+
+	void* hndl = xdma_netdev_open(DRV_MODULE_NAME, pdev, &user_max, &h2c_channel_max, &c2h_channel_max);
+	if (!hndl) {
+		rv = -EINVAL;
+		goto err_free;
+	}
+
+	xpdev_cnt++;
+
+	if (user_max > MAX_USER_IRQ) {
+		pr_err("Maximum users limit reached\n");
+		rv = -EINVAL;
+		goto err_close;
+	}
+
+	if (h2c_channel_max > XDMA_CHANNEL_NUM_MAX) {
+		pr_err("Maximun H2C channel limit reached\n");
+		rv = -EINVAL;
+		goto err_close;
+	}
+
+	if (c2h_channel_max > XDMA_CHANNEL_NUM_MAX) {
+		pr_err("Maximun C2H channel limit reached\n");
+		rv = -EINVAL;
+		goto err_close;
+	}
+
+	if (user_max) {
+		u32 mask = (1 << (user_max + 1)) - 1;
+
+		rv = xdma_user_isr_enable(hndl, mask);
+		if (rv)
+			goto err_close;
+	}
+
+	// make sure no duplicate
+	struct xdma_dev* xdev = xdev_find_by_pdev(pdev);
+	if (!xdev) {
+		pr_warn("No xdev found!\n");
+		rv = -EINVAL;
+		goto err_close;
+	}
+
+	if (hndl != xdev) {
+		pr_err("xdev handle mismatch\n");
+		rv = -EINVAL;
+		goto err_close;
+	}
+
+	epdev->xdev = xdev;
+	epdev->num_ports = min3(h2c_channel_max, c2h_channel_max, ETH_MAX_PORTS);
+	if (!epdev->num_ports) {
+		pr_err("No H2C/C2H channel pair found\n");
+		rv = -ENODEV;
+		goto err_close;
+	}
+
+	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, usr %d, ch %d,%d, ports %d.\n", dev_name(&pdev->dev), xdev->idx,
+		pdev, xdev, user_max, h2c_channel_max, c2h_channel_max, epdev->num_ports);
+
+	for (int port = 0; port < epdev->num_ports; port++) {
+		rv = eth_port_probe(epdev, pdev, port);
+		if (rv) {
+			pr_err("Failed to probe port %d: %d\n", port, rv);
+			goto err_ports;
+		}
+	}
+
+	pci_set_drvdata(pdev, epdev);
+
+	return 0;
+
+err_ports:
+	eth_remove_ports(epdev);
+err_close:
+	pr_info("xdev 0x%p xdma_device_close.\n", hndl);
+	xdma_device_close(pdev, hndl);
+	xpdev_cnt--;
+err_free:
+	pr_err("pdev 0x%p, err %d.\n", pdev, rv);
+	kfree(epdev);
+	return rv;
+}
+
+static void remove_one(struct pci_dev* pdev) {
+	struct eth_pci_dev* epdev = pci_get_drvdata(pdev);
+	if (!epdev)
+		return;
+
+	eth_remove_ports(epdev);
+
+	xdma_device_close(pdev, epdev->xdev);
 	xpdev_cnt--;
 
 	pci_set_drvdata(pdev, NULL);
-	free_netdev(net_dev);
+	kfree(epdev);
 }
 
 static struct pci_driver pci_driver = {

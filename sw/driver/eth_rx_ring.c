@@ -115,7 +115,7 @@ int stop_rx_sgdma(struct xdma_rx_ring* rx_ring) {
 }
 
 int rx_ring_init(struct net_device_priv* xndev) {
-	struct xdma_engine* c2h_engine = &xndev->xdev->engine_c2h[0];
+	struct xdma_engine* c2h_engine = &xndev->xdev->engine_c2h[xndev->port];
 	struct xdma_dev* xdev = xndev->xdev;
 	size_t hw_desc_ring_size;
 	size_t hw_res_ring_size;

@@ -1,5 +1,6 @@
-// XSim behavioral TB: drives nic_top in PMA loopback (loopback_in = 3'b010)
-// and waits for rx_locked (sfp_1_led) to go high. Uses the gtwizard_ultrascale
+// XSim behavioral TB: loops each SFP's serial TX back into its RX (like a
+// loopback cable) and waits for rx_locked on both ports (sfp_1_led and
+// sfp_2_led) to go high. Uses the gtwizard_ultrascale
 // behavioral model — exercises real GT bitslip / CDR / reset behavior.
 //
 // To use:
@@ -34,18 +35,27 @@ module nic_top_xsim_tb;
     always #5000 pcie_refclk_clk_p = ~pcie_refclk_clk_p;
     always #5000 pcie_refclk_clk_n = ~pcie_refclk_clk_n;
 
-    // SFP serial — GT internal PMA loopback handles RX, but tie off RX
-    // explicitly so the GT behavioral model doesn't see X/Z on its serial input.
-    logic sfp_1_rxp = 1'b0;
-    logic sfp_1_rxn = 1'b1;
+    // SFP serial — external loopback, each port's TX drives its own RX.
     wire  sfp_1_txp;
     wire  sfp_1_txn;
+    wire  sfp_1_rxp = sfp_1_txp;
+    wire  sfp_1_rxn = sfp_1_txn;
 
     // SFP control/status pins — module present, no fault, signal good
     logic sfp_1_mod_def_0 = 1'b0;
     logic sfp_1_tx_fault  = 1'b0;
     logic sfp_1_los       = 1'b0;
     wire  sfp_1_led;
+
+    wire  sfp_2_txp;
+    wire  sfp_2_txn;
+    wire  sfp_2_rxp = sfp_2_txp;
+    wire  sfp_2_rxn = sfp_2_txn;
+
+    logic sfp_2_mod_def_0 = 1'b0;
+    logic sfp_2_tx_fault  = 1'b0;
+    logic sfp_2_los       = 1'b0;
+    wire  sfp_2_led;
 
     // PCIe lanes — tie off RX, leave TX floating
     logic [7:0] pci_express_x8_rxn = 8'hFF;
@@ -57,8 +67,7 @@ module nic_top_xsim_tb;
     wire       led_g;
 
     nic_top #(
-        .SCRAMBLER_BYPASS (0),  // debug: easier to read TX bits on the wire
-        .DEBUG_EN         (0)
+        .SCRAMBLER_BYPASS (0)   // debug: easier to read TX bits on the wire
     ) u_dut (
         .diff_100mhz_clk_p (diff_100mhz_clk_p),
         .diff_100mhz_clk_n (diff_100mhz_clk_n),
@@ -72,6 +81,14 @@ module nic_top_xsim_tb;
         .sfp_1_tx_fault    (sfp_1_tx_fault),
         .sfp_1_los         (sfp_1_los),
         .sfp_1_led         (sfp_1_led),
+        .sfp_2_rxp         (sfp_2_rxp),
+        .sfp_2_rxn         (sfp_2_rxn),
+        .sfp_2_txp         (sfp_2_txp),
+        .sfp_2_txn         (sfp_2_txn),
+        .sfp_2_mod_def_0   (sfp_2_mod_def_0),
+        .sfp_2_tx_fault    (sfp_2_tx_fault),
+        .sfp_2_los         (sfp_2_los),
+        .sfp_2_led         (sfp_2_led),
         .pci_express_x8_rxn(pci_express_x8_rxn),
         .pci_express_x8_rxp(pci_express_x8_rxp),
         .pci_express_x8_txn(pci_express_x8_txn),
@@ -82,12 +99,8 @@ module nic_top_xsim_tb;
         .led_g             (led_g)
     );
 
-    // nic_top ties loopback_mode to 3'b000. Force it continuously so the GT
-    // samples 010 (PMA loopback) at reset deassertion.
-    always @* force u_dut.loopback_mode = 3'b010;
-
-    // sfp_1_led = rx_locked (direct, no CDC — see CLAUDE.md)
-    wire rx_locked = sfp_1_led;
+    // sfp_N_led = rx_locked[N-1] (direct, no CDC); wait for both ports.
+    wire rx_locked = sfp_1_led && sfp_2_led;
 
     initial begin
         $display("[%0t] sim start, waiting for rx_locked...", $time);
@@ -99,8 +112,8 @@ module nic_top_xsim_tb;
             begin : timeout
                 #500us;
                 $display("[%0t] TIMEOUT — rx_locked never asserted", $time);
-                $display("  freerun_rst=%b loopback_mode=%b",
-                         u_dut.freerun_rst, u_dut.loopback_mode);
+                $display("  freerun_rst=%b sfp_1_led=%b sfp_2_led=%b",
+                         u_dut.freerun_rst_q, sfp_1_led, sfp_2_led);
                 $finish;
             end
             begin : success

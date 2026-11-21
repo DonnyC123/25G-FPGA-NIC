@@ -1,10 +1,16 @@
 package nic_regs_pkg;
   import rss_pkg::*;
 
+  localparam int NIC_PORTS              = 2;
+  localparam int NIC_PORT_W             = $clog2(NIC_PORTS);
+
   localparam int NIC_REGS_DATA_W        = 32;
   localparam int NIC_REGS_WORD_BYTES    = NIC_REGS_DATA_W / 8;
   localparam int NIC_REGS_ADDR_W        = 12;
-  localparam int NIC_REGS_IDX_W         = NIC_REGS_ADDR_W - 2;
+  localparam int NIC_REGS_PORT_ADDR_W   = 10;
+  localparam int NIC_REGS_PORT_SEL_W    = NIC_REGS_ADDR_W - NIC_REGS_PORT_ADDR_W;
+  localparam int NIC_REGS_PORT_STRIDE   = 1 << NIC_REGS_PORT_ADDR_W;
+  localparam int NIC_REGS_IDX_W         = NIC_REGS_PORT_ADDR_W - 2;
 
   localparam logic [NIC_REGS_DATA_W-1:0] NIC_REGS_VERSION = 32'h0001_0000;
 

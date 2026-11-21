@@ -6,6 +6,7 @@ verilog_library(
     name = "nic_regs_top",
     srcs = ["nic_regs_top.sv"],
     deps = [
+        "//hw/common/pkg:nic_regs_pkg",
         "//hw/common/pkg:rss_pkg",
         "//hw/nic_regs/rtl:nic_regs",
         "//hw/rtl_utils/if:axi4_lite_if",

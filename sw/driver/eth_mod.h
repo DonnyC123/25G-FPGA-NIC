@@ -27,6 +27,7 @@
 	 XDMA_CTRL_IE_DESC_ALIGN_MISMATCH | XDMA_CTRL_IE_MAGIC_STOPPED | XDMA_CTRL_IE_IDLE_STOPPED | \
 	 XDMA_CTRL_IE_READ_ERROR | XDMA_CTRL_IE_DESC_ERROR)
 
+#define ETH_MAX_PORTS	   2
 #define WATCHDOG_PERIOD	   (5 * HZ)
 #define RX_BUFFER_LEN	   2048
 #define RX_HEADROOM	   NET_SKB_PAD
@@ -167,9 +168,14 @@ struct net_device_priv {
 	struct xdma_rx_ring* rx_ring;
 	struct xdma_tx_ring* tx_ring;
 
-	int user_max;
-	int h2c_channel_max;
-	int c2h_channel_max;
+	// SFP port, also the XDMA H2C/C2H channel this netdev uses.
+	int port;
+};
+
+struct eth_pci_dev {
+	struct xdma_dev* xdev;
+	int num_ports;
+	struct net_device* net_devs[ETH_MAX_PORTS];
 };
 
 // eth_netdev.c — NAPI poll callbacks (needed by ring files for netif_napi_add)

@@ -5,7 +5,7 @@ verilog_library(
     srcs = ["nic_top.sv"],
     visibility = ["//tools:__pkg__"],
     deps = [
-        "//hw/common/pkg:pcs_pkg",
+        "//hw/common/pkg:nic_regs_pkg",
         "//hw/common/pkg:rss_pkg",
         "//hw/nic_regs/rtl:nic_regs",
         "//hw/rtl_utils:rst_sync",
