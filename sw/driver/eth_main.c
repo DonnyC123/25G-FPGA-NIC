@@ -109,6 +109,7 @@ static int eth_port_probe(struct eth_pci_dev* epdev, struct pci_dev* pdev, int p
 	xndev->port = port;
 
 	net_dev->netdev_ops = &netdev_ops;
+	net_dev->dev_port = port;
 	net_dev->watchdog_timeo = WATCHDOG_PERIOD;
 	// tx features
 	net_dev->hw_features |= TX_FEATURES;
